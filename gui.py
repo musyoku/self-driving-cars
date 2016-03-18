@@ -3,11 +3,7 @@ import math, time
 import numpy as np
 from pprint import pprint
 from vispy import app, gloo, visuals
-
-# width, height
-screen_size = (1180, 750)
-
-initial_num_car = 20
+from config import config
 
 # 色
 color_black = np.asarray((35, 35, 35, 255), dtype=np.float32) / 255.0
@@ -30,25 +26,9 @@ color_infographic_sensor_far_inactive = np.asarray((60, 60, 60, 255), dtype=np.f
 color_infographic_sensor_mid_inactive = np.asarray((63, 63, 63, 255), dtype=np.float32) / 255.0
 color_infographic_sensor_near_inactive = np.asarray((69, 71, 70, 255), dtype=np.float32) / 255.0
 
-color_field_bg_base = np.asarray((44.0 / 255.0, 44.0 / 255.0, 50.0 / 255.0, 1.0))
-color_field_bg = 0.0 * color_black + 1.0 * color_field_bg_base
-color_field_grid_base = np.asarray((232.0 / 255.0, 250.0 / 255.0, 174.0 / 255.0, 1.0))
-color_field_subdiv_point_base = np.asarray((134.0 / 255.0, 214.0 / 255.0, 247.0 / 255.0, 1.0))
-color_field_subdiv_point = 0.3 * color_field_bg_base + 0.7 * color_field_subdiv_point_base
-color_field_wall = color_green
-color_gui_text_highlighted = np.asarray((170.0 / 255.0, 248.0 / 255.0, 230.0 / 255.0, 1.0))
-color_gui_text = np.asarray((107.0 / 255.0, 189.0 / 255.0, 205.0 / 255.0, 1.0))
-color_gui_grid_base = np.asarray((155.0 / 255.0, 234.0 / 255.0, 247.0 / 255.0, 1.0))
-color_gui_grid_highlighted = 0.2 * color_black + 0.8 * color_gui_grid_base
-color_gui_grid = 0.4 * color_black + 0.5 * color_gui_grid_base
-color_gui_sensor_red = np.asarray((247.0 / 255.0, 101.0 / 255.0, 51.0 / 255.0, 1.0))
-color_gui_sensor_yellow = np.asarray((212.0 / 255.0, 219.0 / 255.0, 185.0 / 255.0, 1.0))
-color_gui_sensor_blue = np.asarray((107.0 / 255.0, 189.0 / 255.0, 205.0 / 255.0, 1.0))
-color_gui_sensor_line = 0.4 * color_black + 0.6 * color_gui_grid_base
-color_gui_sensor_line_highlight = np.asarray((39.0 / 255.0, 68.0 / 255.0, 74.0 / 255.0, 1.0))
-color_car_normal = color_gui_sensor_yellow
-color_car_crashed = np.asarray((147.0 / 255.0, 0.0 / 255.0, 0.0 / 255.0, 1.0))
-color_car_reward = color_gui_sensor_blue
+color_car_normal = color_whitesmoke
+color_car_crashed = color_red
+color_car_reward = color_blue
 
 
 # シェーダ
@@ -91,18 +71,18 @@ void main() {
 }
 """
 
-car_vertex = """
-attribute vec2 position;
-attribute vec4 color;
+controller_vertex = """
+attribute vec2 a_position;
+attribute vec4 a_color;
 varying vec4 v_color;
 
 void main() {
-	v_color = color;
-	gl_Position = vec4(position, 0.0, 1.0);
+	v_color = a_color;
+	gl_Position = vec4(a_position, 0.0, 1.0);
 }
 """
 
-car_fragment = """
+controller_fragment = """
 varying vec4 v_color;
 
 void main() {
@@ -389,7 +369,7 @@ class Field:
 							_x = x + sgw * sub_x
 							# x, yそれぞれ2マス分ずらす
 							a_position.append((_x, _y))
-							if sub_x % 4 == 0 or sub_y % 4 == 0:
+							if sub_x % 4 == 0 and sub_y % 4 == 0:
 								a_point_size.append([3])
 							else:
 								a_point_size.append([1])
@@ -412,11 +392,6 @@ class Field:
 					bg_positions.append((x_start + sgw * w, y_start + sgh * (h + 1)))
 					bg_positions.append((x_start + sgw * (w + 1), y_start + sgh * (h + 1)))
 
-					distance = (abs(w - self.grid_subdiv_bg.shape[1] / 2.0) / float(self.grid_subdiv_bg.shape[1]), abs(h - self.grid_subdiv_bg.shape[0] / 2.0) / float(self.grid_subdiv_bg.shape[0]))
-					weight = 1.0 - math.sqrt(distance[0] ** 2 + distance[1] ** 2)
-					weight = weight / 2.0 + 0.5
-					opacity = np.random.uniform(0.6 * math.sqrt(weight), 0.7) * weight
-					bg_color = opacity * color_field_bg_base + (1.0 - opacity) * color_black
 					for i in xrange(6):
 						iw = 1.0 if self.grid_subdiv_wall[h, w] == 1 else 0.0
 						is_wall.append(iw)
@@ -450,10 +425,10 @@ class Infographic():
 
 		self.color_hex_str_text = "#c1c1b9"
 
-		self.text_title_field = visuals.TextVisual("SELF-DRIVING", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
+		self.text_title_field = visuals.TextVisual("SELF-DRIVING CARS", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
 		self.text_title_field.font_size = 16
 
-		self.text_title_data = visuals.TextVisual("DATA", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
+		self.text_title_data = visuals.TextVisual("DATA STREAM", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
 		self.text_title_data.font_size = 16
 
 		self.text_title_sensor = visuals.TextVisual("SENSOR", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
@@ -523,10 +498,10 @@ class Infographic():
 class Controller:
 	def __init__(self):
 		self.controller = []
-		self.lookup = np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, initial_num_car), dtype=np.uint8)
-		self.program = gloo.Program(car_vertex, car_fragment)
+		self.lookup = np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
+		self.program = gloo.Program(controller_vertex, controller_fragment)
 		self.textvisuals = []
-		for i in xrange(initial_num_car):
+		for i in xrange(config.initial_num_car):
 			self.controller.append(Car(self, index=i))
 			text = visuals.TextVisual("car %d" % i, color="white", anchor_x="left", anchor_y="top")
 			text.font_size = 8
@@ -543,14 +518,15 @@ class Controller:
 			p, c = car.compute_gl_attributes()
 			positions.extend(p)
 			colors.extend(c)
-		self.program["position"] = positions
-		self.program["color"] = colors
+		self.program["a_position"] = positions
+		self.program["a_color"] = colors
 		self.program.draw("lines")
 		for text in self.textvisuals:
 			text.draw()
 
 	def step(self):
 		for car in self.controller:
+			state = car.rl_state
 			a = np.random.randint(4)
 			if a == 0:
 				car.action_throttle()
@@ -561,6 +537,11 @@ class Controller:
 			else:
 				car.action_steer_left()
 			car.move()
+			new_state, reward = car.get_rl_state_and_reward()
+			if new_state is not None and state is not None:
+				if car.index == 0:
+					diff = new_state - state
+					print diff
 			text = self.textvisuals[car.index]
 			text.pos = car.pos[0] + 10, car.pos[1] - 10
 
@@ -591,11 +572,12 @@ class Car:
 		self.speed = 0
 		self.steering = 0
 		self.steering_unit = math.pi / 30.0
-		self.state = Car.STATE_NORMAL
+		self.state_code = Car.STATE_NORMAL
 		self.pos = (canvas.size[0] / 2.0 + np.random.randint(400) - 200, canvas.size[1] / 2.0 + np.random.randint(400) - 200)
 		self.prev_lookup_xi, self.prev_lookup_yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		self.manager.lookup[self.prev_lookup_yi, self.prev_lookup_xi, self.index] = 1
 		self.over = False
+		self.rl_state = None
 
 	def compute_gl_attributes(self):
 		xi, yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
@@ -608,9 +590,9 @@ class Car:
 			_x = 2.0 * (x * cos - y * sin + self.pos[0]) / sw - 1
 			_y = 2.0 * (x * sin + y * cos + (sh - self.pos[1])) / sh - 1
 			positions.append((_x, _y))
-			if self.state == Car.STATE_CRASHED:
+			if self.state_code == Car.STATE_CRASHED:
 				colors.append(color_car_crashed)
-			elif self.state == Car.STATE_REWARD:
+			elif self.state_code == Car.STATE_REWARD:
 				colors.append(color_car_reward)
 			else:
 				colors.append(color_car_normal)
@@ -673,25 +655,38 @@ class Car:
 
 		return values
 
+	def get_rl_state_and_reward(self):
+		reward = max(self.speed / float(self.max_speed), 0.0)
+		if self.state_code == Car.STATE_CRASHED:
+			reward = -1.0
+		return self.rl_state, reward
+
 	def move(self):
 		cos = math.cos(-self.steering)
 		sin = math.sin(-self.steering)
 		x = -sin * self.speed		
 		y = cos * self.speed
 		sensors = self.get_sensor_value()
-		self.state = Car.STATE_NORMAL
+
+		rl_state = np.empty((50,), dtype=np.float32)
+		rl_state[0:48] = sensors
+		rl_state[48] = self.speed / float(self.max_speed)
+		rl_state[49] = self.steering
+		self.rl_state = rl_state
+
+		self.state_code = Car.STATE_NORMAL
 		if sensors[0] > 0 and self.speed > 0:
 			self.speed = 0
-			self.state = Car.STATE_CRASHED
+			self.state_code = Car.STATE_CRASHED
 			return
 		if sensors[4] > 0 and self.speed < 0:
 			self.speed = 0
-			self.state = Car.STATE_CRASHED
+			self.state_code = Car.STATE_CRASHED
 			return
 		if self.speed > 0:
-			self.state = Car.STATE_REWARD
+			self.state_code = Car.STATE_REWARD
 		if self.over:
-			self.state = Car.STATE_CRASHED
+			self.state_code = Car.STATE_CRASHED
 		self.pos = (self.pos[0] + x, self.pos[1] - y)
 		if field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
 			self.respawn()
@@ -721,7 +716,7 @@ class Car:
 
 class Canvas(app.Canvas):
 	def __init__(self):
-		app.Canvas.__init__(self, size=screen_size, title="self-driving", keys="interactive")
+		app.Canvas.__init__(self, size=config.screen_size, title="self-driving", keys="interactive")
 
 		self.is_mouse_pressed = False
 		self.is_key_shift_pressed = False
