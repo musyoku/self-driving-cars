@@ -254,7 +254,7 @@ class Field:
 	def is_screen_position_inside_field(self, pixel_x, pixel_y, grid_width=None, grid_height=None):
 		if grid_width is None or grid_height is None:
 			grid_width, grid_height = self.comput_grid_size()
-		_, screen_height = canvas.size
+		_, screen_height = gui.canvas.size
 		subdivision_width = grid_width / float(self.n_grid_w) / 4.0
 		subdivision_height = grid_height / float(self.n_grid_h) / 4.0
 		if pixel_x < self.px - subdivision_width * 2:
@@ -271,7 +271,7 @@ class Field:
 		grid_width, grid_height = self.comput_grid_size()
 		if self.is_screen_position_inside_field(pixel_x, pixel_y, grid_width=grid_width, grid_height=grid_height) is False:
 			return -1, -1
-		_, screen_height = canvas.size
+		_, screen_height = gui.canvas.size
 		subdivision_width = grid_width / float(self.n_grid_w) / 4.0
 		subdivision_height = grid_height / float(self.n_grid_h) / 4.0
 		x = pixel_x - self.px + subdivision_width * 2
@@ -302,7 +302,7 @@ class Field:
 		return True if self.grid_subdiv_bg[array_y, array_x] == 1 else False
 
 	def comput_grid_size(self):
-		sw, sh = canvas.size
+		sw, sh = gui.canvas.size
 		ratio = self.n_grid_h / float(self.n_grid_w)
 		if sw >= sh:
 			lh = sh - self.py * 2
@@ -345,7 +345,7 @@ class Field:
 
 	def set_positions(self):
 		np.random.seed(0)
-		sw, sh = canvas.size
+		sw, sh = gui.canvas.size
 		lw ,lh = self.comput_grid_size()
 		sgw = lw / float(self.n_grid_w) / 4.0 / float(sw) * 2.0
 		sgh = lh / float(self.n_grid_h) / 4.0 / float(sh) * 2.0
@@ -435,17 +435,17 @@ class Infographic():
 		self.text_title_sensor.font_size = 16
 
 	def set_positions(self):
-		sw, sh = canvas.size
+		sw, sh = gui.canvas.size
 		sw = float(sw)
 		sh = float(sh)
-		lw ,lh = field.comput_grid_size()
-		sgw = lw / float(field.n_grid_w) / 4.0
-		sgh = lh / float(field.n_grid_h) / 4.0
+		lw ,lh = gui.field.comput_grid_size()
+		sgw = lw / float(gui.field.n_grid_w) / 4.0
+		sgh = lh / float(gui.field.n_grid_h) / 4.0
 
 		# Text
-		self.text_title_field.pos = field.px - sgw * 1.5, sh - lh - field.py - sgh * 3.5
-		self.text_title_data.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 3.5
-		self.text_title_sensor.pos = field.px + lw + sgw * 3.5, sh - field.py - sgh * 8.5
+		self.text_title_field.pos = gui.field.px - sgw * 1.5, sh - lh - gui.field.py - sgh * 3.5
+		self.text_title_data.pos = gui.field.px + lw + sgw * 3.5, sh - lh - gui.field.py - sgh * 3.5
+		self.text_title_sensor.pos = gui.field.px + lw + sgw * 3.5, sh - gui.field.py - sgh * 8.5
 
 	def configure(self, canvas, viewport):
 		self.text_title_field.transforms.configure(canvas=canvas, viewport=viewport)
@@ -470,17 +470,17 @@ class Infographic():
 		for i in xrange(24):
 			self.program_sensor["u_far[%d]" % i] = sensor_value[i + 24]
 
-		sw, sh = canvas.size
+		sw, sh = gui.canvas.size
 		sw = float(sw)
 		sh = float(sh)
-		lw ,lh = field.comput_grid_size()
-		sgw = lw / float(field.n_grid_w) / 4.0
-		sgh = lh / float(field.n_grid_h) / 4.0
-		base_x = 2.0 * (field.px + lw + sgw * 3.0) / sw - 1
-		base_y = 2.0 * (field.py - sgh * 2.0) / sh - 1
+		lw ,lh = gui.field.comput_grid_size()
+		sgw = lw / float(gui.field.n_grid_w) / 4.0
+		sgh = lh / float(gui.field.n_grid_h) / 4.0
+		base_x = 2.0 * (gui.field.px + lw + sgw * 3.0) / sw - 1
+		base_y = 2.0 * (gui.field.py - sgh * 2.0) / sh - 1
 		width = sgw * 10 / sw * 2.0
 		height = sgh * 10 / sh * 2.0
-		center = (field.px + lw + sgw * 8.0, field.py + sgh * 3.0)
+		center = (gui.field.px + lw + sgw * 8.0, gui.field.py + sgh * 3.0)
 		self.program_sensor["u_center"] = center
 		self.program_sensor["u_size"] = sgw * 10, sgh * 10
 		positions = []
@@ -497,12 +497,12 @@ class Infographic():
 
 class Controller:
 	def __init__(self):
-		self.controller = []
-		self.lookup = np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
+		self.cars = []
+		self.lookup = np.zeros((gui.field.n_grid_h * 4 + 4, gui.field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
 		self.program = gloo.Program(controller_vertex, controller_fragment)
 		self.textvisuals = []
 		for i in xrange(config.initial_num_car):
-			self.controller.append(Car(self, index=i))
+			self.cars.append(Car(self, index=i))
 			text = visuals.TextVisual("car %d" % i, color="white", anchor_x="left", anchor_y="top")
 			text.font_size = 8
 			self.textvisuals.append(text)
@@ -514,7 +514,7 @@ class Controller:
 	def draw(self):
 		positions = []
 		colors = []
-		for car in self.controller:
+		for car in self.cars:
 			p, c = car.compute_gl_attributes()
 			positions.extend(p)
 			colors.extend(c)
@@ -525,7 +525,7 @@ class Controller:
 			text.draw()
 
 	def step(self):
-		for car in self.controller:
+		for car in self.cars:
 			state = car.rl_state
 			a = np.random.randint(4)
 			if a == 0:
@@ -541,7 +541,6 @@ class Controller:
 			if new_state is not None and state is not None:
 				if car.index == 0:
 					diff = new_state - state
-					print diff
 			text = self.textvisuals[car.index]
 			text.pos = car.pos[0] + 10, car.pos[1] - 10
 
@@ -553,8 +552,8 @@ class Controller:
 		return np.argwhere(self.lookup[start_yi:end_yi, start_xi:end_xi, :] == 1)
 
 	def get_car_at_index(self, index=0):
-		if index < len(self.controller):
-			return self.controller[index]
+		if index < len(self.cars):
+			return self.cars[index]
 		return None
 
 class Car:
@@ -573,15 +572,15 @@ class Car:
 		self.steering = 0
 		self.steering_unit = math.pi / 30.0
 		self.state_code = Car.STATE_NORMAL
-		self.pos = (canvas.size[0] / 2.0 + np.random.randint(400) - 200, canvas.size[1] / 2.0 + np.random.randint(400) - 200)
-		self.prev_lookup_xi, self.prev_lookup_yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
+		self.pos = (gui.canvas.size[0] / 2.0 + np.random.randint(400) - 200, gui.canvas.size[1] / 2.0 + np.random.randint(400) - 200)
+		self.prev_lookup_xi, self.prev_lookup_yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		self.manager.lookup[self.prev_lookup_yi, self.prev_lookup_xi, self.index] = 1
 		self.over = False
 		self.rl_state = None
 
 	def compute_gl_attributes(self):
-		xi, yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
-		sw, sh = canvas.size
+		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
+		sw, sh = gui.canvas.size
 		cos = math.cos(-self.steering)
 		sin = math.sin(-self.steering)
 		positions = []
@@ -599,17 +598,17 @@ class Car:
 		return positions, colors
 
 	def respawn(self):
-		self.pos = (canvas.size[0] / 2.0, canvas.size[1] / 2.0)
+		self.pos = (gui.canvas.size[0] / 2.0, gui.canvas.size[1] / 2.0)
 
 	def get_sensor_value(self):
 		# 衝突判定
-		sw, sh = canvas.size
-		xi, yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
+		sw, sh = gui.canvas.size
+		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		values = np.zeros((48,), dtype=np.float32)
 		self.over == False
 
 		# 壁
-		blocks = field.surrounding_wal_indicis(xi, yi, 3)
+		blocks = gui.field.surrounding_wal_indicis(xi, yi, 3)
 		for block in blocks:
 			i = Car.lookup[block[0]][block[1]]
 			if i != -1:
@@ -688,10 +687,10 @@ class Car:
 		if self.over:
 			self.state_code = Car.STATE_CRASHED
 		self.pos = (self.pos[0] + x, self.pos[1] - y)
-		if field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
+		if gui.field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
 			self.respawn()
 
-		xi, yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
+		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		if xi == self.prev_lookup_xi and yi == self.prev_lookup_yi:
 			return
 		self.manager.lookup[self.prev_lookup_yi,self.prev_lookup_xi,self.index] = 0
@@ -729,8 +728,8 @@ class Canvas(app.Canvas):
 	def on_draw(self, event):
 		gloo.clear(color="#2e302f")
 		gloo.set_viewport(0, 0, *self.physical_size)
-		field.draw()
-		infographic.draw()
+		gui.field.draw()
+		gui.infographic.draw()
 		controller.draw()
 
 	def on_resize(self, event):
@@ -756,12 +755,12 @@ class Canvas(app.Canvas):
 
 	def toggle_wall(self, pos):
 		if self.is_mouse_pressed:
-			if field.is_screen_position_inside_field(pos[0], pos[1]):
-				x, y = field.compute_array_index_from_position(pos[0], pos[1])
+			if gui.field.is_screen_position_inside_field(pos[0], pos[1]):
+				x, y = gui.field.compute_array_index_from_position(pos[0], pos[1])
 				if self.is_key_shift_pressed:
-					field.destroy_wall_at_index(x, y)
+					gui.field.destroy_wall_at_index(x, y)
 				else:
-					field.construct_wall_at_index(x, y)
+					gui.field.construct_wall_at_index(x, y)
 
 	def on_key_press(self, event):
 		if event.key == "Shift":
@@ -775,20 +774,20 @@ class Canvas(app.Canvas):
 		self.width, self.height = self.size
 		gloo.set_viewport(0, 0, *self.physical_size)
 		vp = (0, 0, self.physical_size[0], self.physical_size[1])
-		infographic.configure(canvas=self, viewport=vp)
+		gui.infographic.configure(canvas=self, viewport=vp)
 		controller.configure(canvas=self, viewport=vp)
-		field.set_needs_display()
+		gui.field.set_needs_display()
 		
 	def on_timer(self, event):
 		controller.step()
 		self.update()
 
-if __name__ == "__main__":
-	canvas = Canvas()
-	infographic = Infographic()
-	field = Field()
-	controller = Controller()
-	canvas.activate_zoom()
-	canvas.show()
-	# canvas.measure_fps()
-	app.run()
+class Gui:
+	def __init__(self):
+		self.canvas = Canvas()
+		self.infographic = Infographic()
+		self.field = Field()
+		# gui.canvas.measure_fps()
+
+gui = Gui()
+controller = Controller()
