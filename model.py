@@ -58,6 +58,15 @@ class Model:
 		]
 		self.total_replay_memory = 0
 
+	def get_action_with_index(self, i):
+		return config.actions[i]
+
+	def get_index_with_action(self, action):
+		return config.actions.index(action)
+
+	def decrease_exploration_rate(self):
+		self.exploration_rate = max(self.exploration_rate - 1.0 / config.rl_final_exploration_frame, config.rl_final_exploration)
+
 class DoubleDQN(Model):
 	def __init__(self):
 		Model.__init__(self)
@@ -76,7 +85,7 @@ class DoubleDQN(Model):
 
 		# Fully connected part of Q-Network
 		fc_attributes = {}
-		fc_units = [(50, config.q_fc_hidden_units[0])]
+		fc_units = [(50 * config.rl_history_length, config.q_fc_hidden_units[0])]
 		fc_units += zip(config.q_fc_hidden_units[:-1], config.q_fc_hidden_units[1:])
 		fc_units += [(config.q_fc_hidden_units[-1], len(config.actions))]
 
@@ -102,7 +111,7 @@ class DoubleDQN(Model):
 		if prop < exploration_rate:
 			action_index = np.random.randint(0, len(config.actions))
 		else:
-			state = Variable(state)
+			state = Variable(state.reshape((1, config.rl_history_length * 50)))
 			if config.use_gpu:
 				state.to_gpu()
 			q = self.compute_q_variable(state, test=True)
@@ -120,17 +129,17 @@ class DoubleDQN(Model):
 
 	def store_transition_in_replay_memory(self, state, action, reward, next_state):
 		index = self.total_replay_memory % config.rl_replay_memory_size
-		self.replay_memory[0][index] = state[0]
+		self.replay_memory[0][index] = state
 		self.replay_memory[1][index] = action
 		self.replay_memory[2][index] = reward
-		self.replay_memory[3][index] = next_state[0]
+		self.replay_memory[3][index] = next_state
 		self.total_replay_memory += 1
 
 	def forward_one_step(self, state, action, reward, next_state, test=False):
 		xp = cuda.cupy if config.use_gpu else np
 		n_batch = state.shape[0]
-		state = Variable(state)
-		next_state = Variable(next_state)
+		state = Variable(state.reshape((n_batch, config.rl_history_length * 50)))
+		next_state = Variable(next_state.reshape((n_batch, config.rl_history_length * 50)))
 		if config.use_gpu:
 			state.to_gpu()
 			next_state.to_gpu()
@@ -194,15 +203,6 @@ class DoubleDQN(Model):
 
 	def update_target(self):
 		self.target_fc = copy.deepcopy(self.fc)
-
-	def get_action_with_index(self, i):
-		return config.actions[i]
-
-	def get_index_with_action(self, action):
-		return config.actions.index(action)
-
-	def decrease_exploration_rate(self):
-		self.exploration_rate = max(self.exploration_rate - 1.0 / config.rl_final_exploration_frame, config.rl_final_exploration)
 
 	def load(self):
 		filename = "fc.model"

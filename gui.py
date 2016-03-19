@@ -30,8 +30,6 @@ color_car_normal = color_whitesmoke
 color_car_crashed = color_red
 color_car_reward = color_blue
 
-
-# シェーダ
 field_point_vertex = """
 attribute vec2 a_position;
 attribute float a_point_size;
@@ -68,135 +66,6 @@ varying float v_is_wall;
 
 void main() {
 	gl_FragColor = mix(u_wall_color, u_bg_color, float(v_is_wall == 0));
-}
-"""
-
-controller_vertex = """
-attribute vec2 a_position;
-attribute vec4 a_color;
-varying vec4 v_color;
-
-void main() {
-	v_color = a_color;
-	gl_Position = vec4(a_position, 0.0, 1.0);
-}
-"""
-
-controller_fragment = """
-varying vec4 v_color;
-
-void main() {
-	gl_FragColor = v_color;
-}
-"""
-
-infographic_sensor_vertex = """
-attribute vec2 a_position;
-
-void main() {
-	gl_Position = vec4(a_position, 0.0, 1.0);
-}
-"""
-
-infographic_sensor_fragment = """
-uniform vec2 u_center;
-uniform vec2 u_size;
-uniform float u_near[8];
-uniform float u_mid[16];
-uniform float u_far[24];
-uniform vec4 u_near_color;
-uniform vec4 u_mid_color;
-uniform vec4 u_far_color;
-uniform vec4 u_near_color_inactive;
-uniform vec4 u_mid_color_inactive;
-uniform vec4 u_far_color_inactive;
-uniform vec4 u_bg_color;
-uniform vec4 u_line_color;
-
-const float M_PI = 3.14159265358979323846;
-
-float atan2(in float y, in float x)
-{
-	float result = atan(y, x) + M_PI;
-	return 1.0 - mod(result + M_PI / 2.0, M_PI * 2.0) / M_PI / 2.0;
-}
-
-void main() {
-	vec2 coord = gl_FragCoord.xy;
-	float d = distance(coord, u_center);
-	vec2 local = coord - u_center;
-	float rad = atan2(local.y, local.x);
-
-	// #1
-	float line_width = 1;
-	float radius = u_size.x / 2.0 * 0.7;
-	float diff = d - radius;
-	if(abs(diff) <= line_width){
-		diff /= line_width;
-		gl_FragColor = mix(vec4(u_line_color.rgb, fract(1 + diff)), vec4(u_line_color.rgb, 1.0 - fract(diff)), float(diff > 0));
-		return;
-	}
-
-	// far
-	radius = u_size.x / 2.0 * 0.6;
-	diff = d - radius;
-	line_width = 10;
-	float segments = 24.0;
-	if(abs(diff) <= line_width / 2.0){
-		vec4 result;
-		if(diff >= 0){
-			diff -= (line_width / 2.0 - 1.0);
-			result = mix(vec4(u_far_color.rgb, 1.0 - fract(diff)), u_far_color, float(diff < 0));
-		}else{
-			diff += line_width / 2.0;
-			result = mix(vec4(u_far_color.rgb, fract(1 + diff)), u_far_color, float(diff >= 1));
-		}
-		int index = int(fract(rad + 1.0 / segments / 2.0) * segments);
-		float rat = u_far[index];
-		gl_FragColor = mix(vec4(u_far_color_inactive.rgb, result.a), result, rat);
-		return;
-	}
-
-	// mid
-	radius = u_size.x / 2.0 * 0.5;
-	diff = d - radius;
-	line_width = 10;
-	segments = 16.0;
-	if(abs(diff) <= line_width / 2.0){
-		vec4 result;
-		if(diff >= 0){
-			diff -= (line_width / 2.0 - 1.0);
-			result = mix(vec4(u_mid_color.rgb, 1.0 - fract(diff)), u_mid_color, float(diff < 0));
-		}else{
-			diff += line_width / 2.0;
-			result = mix(vec4(u_mid_color.rgb, fract(1 + diff)), u_mid_color, float(diff >= 1));
-		}
-		int index = int(fract(rad + 1.0 / segments / 2.0) * segments);
-		float rat = u_mid[index];
-		gl_FragColor = mix(vec4(u_mid_color_inactive.rgb, result.a), result, rat);
-		return;
-	}
-
-	// near
-	radius = u_size.x / 2.0 * 0.4;
-	diff = d - radius;
-	line_width = 10;
-	segments = 8.0;
-	if(abs(diff) <= line_width / 2.0){
-		vec4 result;
-		if(diff >= 0){
-			diff -= (line_width / 2.0 - 1.0);
-			result = mix(vec4(u_near_color.rgb, 1.0 - fract(diff)), u_near_color, float(diff < 0));
-		}else{
-			diff += line_width / 2.0;
-			result = mix(vec4(u_near_color.rgb, fract(1 + diff)), u_near_color, float(diff >= 1));
-		}
-		int index = int(fract(rad + 1.0 / segments / 2.0) * segments);
-		float rat = u_near[index];
-		gl_FragColor = mix(vec4(u_near_color_inactive.rgb, result.a), result, rat);
-		return;
-	}
-
 }
 """
 
@@ -411,6 +280,116 @@ class Field:
 	def draw_wall(self):
 		self.program_wall.draw("triangles")
 
+
+infographic_sensor_vertex = """
+attribute vec2 a_position;
+
+void main() {
+	gl_Position = vec4(a_position, 0.0, 1.0);
+}
+"""
+
+infographic_sensor_fragment = """
+uniform vec2 u_center;
+uniform vec2 u_size;
+uniform float u_near[8];
+uniform float u_mid[16];
+uniform float u_far[24];
+uniform vec4 u_near_color;
+uniform vec4 u_mid_color;
+uniform vec4 u_far_color;
+uniform vec4 u_near_color_inactive;
+uniform vec4 u_mid_color_inactive;
+uniform vec4 u_far_color_inactive;
+uniform vec4 u_line_color;
+
+const float M_PI = 3.14159265358979323846;
+
+float atan2(in float y, in float x)
+{
+	float result = atan(y, x) + M_PI;
+	return 1.0 - mod(result + M_PI / 2.0, M_PI * 2.0) / M_PI / 2.0;
+}
+
+void main() {
+	vec2 coord = gl_FragCoord.xy;
+	float d = distance(coord, u_center);
+	vec2 local = coord - u_center;
+	float rad = atan2(local.y, local.x);
+
+	// #1
+	float line_width = 1;
+	float radius = u_size.x / 2.0 * 0.7;
+	float diff = d - radius;
+	if(abs(diff) <= line_width){
+		diff /= line_width;
+		gl_FragColor = mix(vec4(u_line_color.rgb, fract(1 + diff)), vec4(u_line_color.rgb, 1.0 - fract(diff)), float(diff > 0));
+		return;
+	}
+
+	// far
+	radius = u_size.x / 2.0 * 0.6;
+	diff = d - radius;
+	line_width = 10;
+	float segments = 24.0;
+	if(abs(diff) <= line_width / 2.0){
+		vec4 result;
+		if(diff >= 0){
+			diff -= (line_width / 2.0 - 1.0);
+			result = mix(vec4(u_far_color.rgb, 1.0 - fract(diff)), u_far_color, float(diff < 0));
+		}else{
+			diff += line_width / 2.0;
+			result = mix(vec4(u_far_color.rgb, fract(1 + diff)), u_far_color, float(diff >= 1));
+		}
+		int index = int(fract(rad + 1.0 / segments / 2.0) * segments);
+		float rat = u_far[index];
+		gl_FragColor = mix(vec4(u_far_color_inactive.rgb, result.a), result, rat);
+		return;
+	}
+
+	// mid
+	radius = u_size.x / 2.0 * 0.5;
+	diff = d - radius;
+	line_width = 10;
+	segments = 16.0;
+	if(abs(diff) <= line_width / 2.0){
+		vec4 result;
+		if(diff >= 0){
+			diff -= (line_width / 2.0 - 1.0);
+			result = mix(vec4(u_mid_color.rgb, 1.0 - fract(diff)), u_mid_color, float(diff < 0));
+		}else{
+			diff += line_width / 2.0;
+			result = mix(vec4(u_mid_color.rgb, fract(1 + diff)), u_mid_color, float(diff >= 1));
+		}
+		int index = int(fract(rad + 1.0 / segments / 2.0) * segments);
+		float rat = u_mid[index];
+		gl_FragColor = mix(vec4(u_mid_color_inactive.rgb, result.a), result, rat);
+		return;
+	}
+
+	// near
+	radius = u_size.x / 2.0 * 0.4;
+	diff = d - radius;
+	line_width = 10;
+	segments = 8.0;
+	if(abs(diff) <= line_width / 2.0){
+		vec4 result;
+		if(diff >= 0){
+			diff -= (line_width / 2.0 - 1.0);
+			result = mix(vec4(u_near_color.rgb, 1.0 - fract(diff)), u_near_color, float(diff < 0));
+		}else{
+			diff += line_width / 2.0;
+			result = mix(vec4(u_near_color.rgb, fract(1 + diff)), u_near_color, float(diff >= 1));
+		}
+		int index = int(fract(rad + 1.0 / segments / 2.0) * segments);
+		float rat = u_near[index];
+		gl_FragColor = mix(vec4(u_near_color_inactive.rgb, result.a), result, rat);
+		return;
+	}
+
+}
+"""
+
 class Infographic():
 	def __init__(self):
 		self.program_sensor = gloo.Program(infographic_sensor_vertex, infographic_sensor_fragment)
@@ -420,7 +399,6 @@ class Infographic():
 		self.program_sensor["u_near_color_inactive"] = color_infographic_sensor_near_inactive
 		self.program_sensor["u_mid_color_inactive"] = color_infographic_sensor_mid_inactive
 		self.program_sensor["u_far_color_inactive"] = color_infographic_sensor_far_inactive
-		self.program_sensor["u_bg_color"] = color_black
 		self.program_sensor["u_line_color"] = color_whitesmoke
 
 		self.color_hex_str_text = "#c1c1b9"
@@ -495,12 +473,65 @@ class Infographic():
 
 		self.program_sensor.draw("triangles")
 
+controller_cars_vertex = """
+attribute vec2 a_position;
+attribute vec4 a_color;
+varying vec4 v_color;
+
+void main() {
+	v_color = a_color;
+	gl_Position = vec4(a_position, 0.0, 1.0);
+}
+"""
+
+controller_cars_fragment = """
+varying vec4 v_color;
+
+void main() {
+	gl_FragColor = v_color;
+}
+"""
+controller_location_vertex = """
+attribute vec2 a_position;
+
+void main() {
+	gl_Position = vec4(a_position, 0.0, 1.0);
+}
+"""
+
+controller_location_fragment = """
+uniform vec2 u_center;
+uniform vec2 u_size;
+uniform vec4 u_line_color;
+
+void main() {
+	vec2 coord = gl_FragCoord.xy;
+	float d = distance(coord, u_center);
+	float line_width = 1;
+	float radius = u_size.x / 2.0 * 0.8;
+	float diff = d - radius;
+	if(abs(diff) <= line_width){
+		diff /= line_width;
+		gl_FragColor = mix(vec4(u_line_color.rgb, fract(1 + diff)), vec4(u_line_color.rgb, 1.0 - fract(diff)), float(diff > 0));
+		return;
+	}
+}
+"""
+
 class Controller:
+	ACTION_NO_OPS = 0
+	ACTION_THROTTLE = 1
+	ACTION_BRAKE = 2
+	ACTION_STEER_RIGHT = 3
+	ACTION_STEER_LEFT = 4
 	def __init__(self):
 		self.cars = []
 		self.lookup = np.zeros((gui.field.n_grid_h * 4 + 4, gui.field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
-		self.program = gloo.Program(controller_vertex, controller_fragment)
+		self.program_cars = gloo.Program(controller_cars_vertex, controller_cars_fragment)
+		self.program_location = gloo.Program(controller_location_vertex, controller_location_fragment)
+		self.program_location["u_line_color"] = color_yellow
 		self.textvisuals = []
+		self.glue = None
 		for i in xrange(config.initial_num_car):
 			self.cars.append(Car(self, index=i))
 			text = visuals.TextVisual("car %d" % i, color="white", anchor_x="left", anchor_y="top")
@@ -518,29 +549,55 @@ class Controller:
 			p, c = car.compute_gl_attributes()
 			positions.extend(p)
 			colors.extend(c)
-		self.program["a_position"] = positions
-		self.program["a_color"] = colors
-		self.program.draw("lines")
+		self.program_cars["a_position"] = positions
+		self.program_cars["a_color"] = colors
+		self.program_cars.draw("lines")
 		for text in self.textvisuals:
 			text.draw()
 
+		sw = float(gui.canvas.size[0])
+		sh = float(gui.canvas.size[1])
+		length = gui.canvas.size[0] / 10.0
+		location_width = length / sw * 2.0
+		location_height = length / sh * 2.0
+		car = self.get_car_at_index(0)
+		location_center = 2.0 * (car.pos[0] / sw) - 1, 2.0 - 2.0 * (car.pos[1] / sh)  - 1
+		location_positions = [(location_center[0] - location_width / 2.0, location_center[1] - location_height / 2.0),
+								(location_center[0] + location_width / 2.0, location_center[1] - location_height / 2.0),
+								(location_center[0] - location_width / 2.0, location_center[1] + location_height / 2.0),
+								(location_center[0] + location_width / 2.0, location_center[1] + location_height / 2.0)]
+		a_position = []
+		a_position.append(location_positions[0])
+		a_position.append(location_positions[1])
+		a_position.append(location_positions[2])
+		a_position.append(location_positions[3])
+		self.program_location["u_center"] = car.pos[0], sh - car.pos[1]
+		self.program_location["u_size"] = length, length
+		self.program_location["a_position"] = a_position
+		self.program_location.draw("triangle_strip")
+
 	def step(self):
+		if self.glue is None:
+			return
 		for car in self.cars:
 			state = car.rl_state
-			a = np.random.randint(4)
-			if a == 0:
+			action = self.glue.take_action(car_index=car.index)
+			if action == Controller.ACTION_NO_OPS:
+				pass
+			elif action == Controller.ACTION_THROTTLE:
 				car.action_throttle()
-			elif a == 1:
+			elif action == Controller.ACTION_BRAKE:
 				car.action_brake()
-			elif a == 2:
+			elif action == Controller.ACTION_STEER_RIGHT:
 				car.action_steer_right()
-			else:
+			elif action == Controller.ACTION_STEER_LEFT:
 				car.action_steer_left()
+			else:
+				raise NotImplementedError()
 			car.move()
 			new_state, reward = car.get_rl_state_and_reward()
 			if new_state is not None and state is not None:
-				if car.index == 0:
-					diff = new_state - state
+				self.glue.agent_step(action, reward, new_state, car_index=car.index)
 			text = self.textvisuals[car.index]
 			text.pos = car.pos[0] + 10, car.pos[1] - 10
 
@@ -670,15 +727,15 @@ class Car:
 		rl_state = np.empty((50,), dtype=np.float32)
 		rl_state[0:48] = sensors
 		rl_state[48] = self.speed / float(self.max_speed)
-		rl_state[49] = self.steering
+		rl_state[49] = self.steering / math.pi / 2.0
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		if sensors[0] > 0 and self.speed > 0:
+		if sensors[0] > 0.3 and self.speed > 0:
 			self.speed = 0
 			self.state_code = Car.STATE_CRASHED
 			return
-		if sensors[4] > 0 and self.speed < 0:
+		if sensors[4] > 0.3 and self.speed < 0:
 			self.speed = 0
 			self.state_code = Car.STATE_CRASHED
 			return
@@ -708,10 +765,16 @@ class Car:
 
 	# ハンドル
 	def action_steer_right(self):
-		self.steering = (self.steering + self.steering_unit) % (math.pi * 2.0)
+		if self.speed > 0:
+			self.steering = (self.steering + self.steering_unit) % (math.pi * 2.0)
+		elif self.speed < 0:
+			self.steering = (self.steering - self.steering_unit) % (math.pi * 2.0)
 
 	def action_steer_left(self):
-		self.steering = (self.steering - self.steering_unit) % (math.pi * 2.0)
+		if self.speed > 0:
+			self.steering = (self.steering - self.steering_unit) % (math.pi * 2.0)
+		elif self.speed < 0:
+			self.steering = (self.steering + self.steering_unit) % (math.pi * 2.0)
 
 class Canvas(app.Canvas):
 	def __init__(self):

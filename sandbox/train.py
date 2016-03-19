@@ -5,7 +5,4 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from config import config
 from glue import glue
 
-# Override config
-config.apply_batchnorm = True
-
 glue.start()
