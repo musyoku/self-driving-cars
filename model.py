@@ -194,6 +194,7 @@ class DoubleDQN(Model):
 		loss, _ = self.forward_one_step(state, action, reward, next_state, test=False)
 		loss.backward()
 		self.optimizer_fc.update()
+		return loss
 
 	def compute_q_variable(self, state, test=False):
 		return self.fc(state, test=test)
@@ -208,7 +209,7 @@ class DoubleDQN(Model):
 		filename = "fc.model"
 		if os.path.isfile(filename):
 			serializers.load_hdf5(filename, self.fc)
-			print "Loaded fully-connected network."
+			print "The model loaded successfully."
 
 	def save(self):
 		serializers.save_hdf5("fc.model", self.fc)

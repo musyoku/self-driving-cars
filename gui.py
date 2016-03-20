@@ -799,8 +799,6 @@ class Car:
 		if self.state_code == Car.STATE_CRASHED:
 			self.stacked = True
 			self.stack_count += 1
-			if self.index == 0:
-				print self.stack_count
 		else:
 			self.stacked = False
 			self.stack_count = 0

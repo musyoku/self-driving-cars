@@ -15,6 +15,9 @@ class Glue:
 		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 50), dtype=np.float32)
 		self.prev_state = self.state.copy()
 
+		self.sum_loss = 0
+		self.sum_reward = 0
+
 	def start(self):
 		gui.canvas.activate_zoom()
 		gui.canvas.show()
@@ -30,6 +33,7 @@ class Glue:
 
 	def agent_step(self, action, reward, new_car_state, car_index=0):
 		self.total_steps += 1
+		self.sum_reward += reward
 		if car_index < config.initial_num_car:
 			self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
 			self.state[car_index, -1] = new_car_state
@@ -41,7 +45,22 @@ class Glue:
 		self.exploration_rate = self.model.exploration_rate
 
 		if self.total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0 and self.total_steps != 0:
-			self.model.replay_experience()
+			loss = self.model.replay_experience()
+			self.sum_loss += loss.data
+
+		if self.total_steps % config.rl_target_network_update_frequency == 0 and self.total_steps != 0:
+			print "The target network has been updated."
+			self.model.update_target()
+
+		if self.total_steps % 10000 == 0 and self.total_steps != 0:
+			print "The model has been saved."
+			self.model.save()
+
+		if self.total_steps % 2000 == 0 and self.total_steps != 0:
+			average_loss = self.sum_loss / self.total_steps * (config.rl_action_repeat * config.rl_update_frequency)
+			self.sum_loss = 0
+			average_reward = self.sum_reward / float(2000)
+			print "total_steps:", self.total_steps, "loss:", average_loss, "reward:", average_reward
 
 	def on_key_press(self, key):
 		if key == "R":
