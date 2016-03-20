@@ -48,7 +48,7 @@ class Model:
 
 		# Replay Memory
 		## (state, action, reward, next_state, episode_ends)
-		shape_state = (config.rl_replay_memory_size, config.rl_history_length, 50)
+		shape_state = (config.rl_replay_memory_size, config.rl_history_length, 34)
 		shape_action = (config.rl_replay_memory_size,)
 		self.replay_memory = [
 			np.zeros(shape_state, dtype=np.float32),
@@ -85,7 +85,7 @@ class DoubleDQN(Model):
 
 		# Fully connected part of Q-Network
 		fc_attributes = {}
-		fc_units = [(50 * config.rl_history_length, config.q_fc_hidden_units[0])]
+		fc_units = [(34 * config.rl_history_length, config.q_fc_hidden_units[0])]
 		fc_units += zip(config.q_fc_hidden_units[:-1], config.q_fc_hidden_units[1:])
 		fc_units += [(config.q_fc_hidden_units[-1], len(config.actions))]
 
@@ -111,7 +111,7 @@ class DoubleDQN(Model):
 		if prop < exploration_rate:
 			action_index = np.random.randint(0, len(config.actions))
 		else:
-			state = Variable(state.reshape((1, config.rl_history_length * 50)))
+			state = Variable(state.reshape((1, config.rl_history_length * 34)))
 			if config.use_gpu:
 				state.to_gpu()
 			q = self.compute_q_variable(state, test=True)
@@ -138,8 +138,8 @@ class DoubleDQN(Model):
 	def forward_one_step(self, state, action, reward, next_state, test=False):
 		xp = cuda.cupy if config.use_gpu else np
 		n_batch = state.shape[0]
-		state = Variable(state.reshape((n_batch, config.rl_history_length * 50)))
-		next_state = Variable(next_state.reshape((n_batch, config.rl_history_length * 50)))
+		state = Variable(state.reshape((n_batch, config.rl_history_length * 34)))
+		next_state = Variable(next_state.reshape((n_batch, config.rl_history_length * 34)))
 		if config.use_gpu:
 			state.to_gpu()
 			next_state.to_gpu()
@@ -177,7 +177,7 @@ class DoubleDQN(Model):
 		else:
 			replay_index = np.random.randint(0, config.rl_replay_memory_size, (config.rl_minibatch_size, 1))
 
-		shape_state = (config.rl_minibatch_size, config.rl_history_length, 50)
+		shape_state = (config.rl_minibatch_size, config.rl_history_length, 34)
 		shape_action = (config.rl_minibatch_size,)
 
 		state = np.empty(shape_state, dtype=np.float32)

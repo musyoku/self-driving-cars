@@ -4,7 +4,7 @@ from activations import activations
 class Config:
 	def __init__(self):
 		self.screen_size = (1180, 750)
-		self.initial_num_car = 1
+		self.initial_num_car = 20
 		self.use_gpu = True
 		self.apply_batchnorm = True
 

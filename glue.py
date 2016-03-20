@@ -12,7 +12,7 @@ class Glue:
 		self.total_steps = np.zeros((config.initial_num_car,), dtype=np.uint32)
 		controller.glue = self
 
-		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 50), dtype=np.float32)
+		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 34), dtype=np.float32)
 		self.prev_state = self.state.copy()
 		self.last_action = np.zeros((config.initial_num_car,), dtype=np.uint8)
 		self.sum_loss = 0

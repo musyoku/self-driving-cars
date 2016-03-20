@@ -20,8 +20,8 @@ color_white = np.asarray((218, 217, 215, 255), dtype=np.float32) / 255.0
 color_field_point = 0.6 * color_whitesmoke + 0.4 * color_gray
 
 color_infographic_sensor_far = color_whitesmoke
-color_infographic_sensor_mid = color_yellow
-color_infographic_sensor_near = color_red
+color_infographic_sensor_mid = color_green
+color_infographic_sensor_near = color_yellow
 color_infographic_sensor_far_inactive = np.asarray((60, 60, 60, 255), dtype=np.float32) / 255.0
 color_infographic_sensor_mid_inactive = np.asarray((63, 63, 63, 255), dtype=np.float32) / 255.0
 color_infographic_sensor_near_inactive = np.asarray((69, 71, 70, 255), dtype=np.float32) / 255.0
@@ -305,7 +305,7 @@ uniform vec2 u_center;
 uniform vec2 u_size;
 uniform float u_near[8];
 uniform float u_mid[16];
-uniform float u_far[24];
+uniform float u_far[16];
 uniform vec4 u_near_color;
 uniform vec4 u_mid_color;
 uniform vec4 u_far_color;
@@ -342,7 +342,7 @@ void main() {
 	radius = u_size.x / 2.0 * 0.6;
 	diff = d - radius;
 	line_width = 10;
-	float segments = 24.0;
+	float segments = 16.0;
 	if(abs(diff) <= line_width / 2.0){
 		vec4 result;
 		if(diff >= 0){
@@ -452,12 +452,13 @@ class Infographic():
 		car = controller.get_car_at_index(0)
 		sensor_value = car.get_sensor_value()
 		# HACK
+		near =  np.roll(sensor_value[0:16], 1)
 		for i in xrange(8):
-			self.program_sensor["u_near[%d]" % i] = sensor_value[i]
+			self.program_sensor["u_near[%d]" % i] = max(near[i * 2], near[i * 2 + 1])
 		for i in xrange(16):
-			self.program_sensor["u_mid[%d]" % i] = sensor_value[i + 8]
-		for i in xrange(24):
-			self.program_sensor["u_far[%d]" % i] = sensor_value[i + 24]
+			self.program_sensor["u_mid[%d]" % i] = sensor_value[i + 16] if sensor_value[i + 16] > 0.5 else 0.0
+		for i in xrange(16):
+			self.program_sensor["u_far[%d]" % i] = sensor_value[i + 16] if sensor_value[i + 16] < 0.5 else 0.0
 
 		sw, sh = gui.canvas.size
 		sw = float(sw)
@@ -549,7 +550,7 @@ class Controller:
 			text.font_size = 8
 			self.textvisuals.append(text)
 
-	def respawn_jammed_cars(self, count=20):
+	def respawn_jammed_cars(self, count=50):
 		for car in self.cars:
 			if car.jammed and car.jam_count > count:
 				car.respawn()
@@ -594,7 +595,6 @@ class Controller:
 		self.program_location.draw("triangle_strip")
 
 	def step(self):
-		return
 		if self.glue is None:
 			return
 		for car in self.cars:
@@ -683,50 +683,58 @@ class Car:
 	def get_sensor_value(self):
 		sw, sh = gui.canvas.size
 		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
-		values = np.zeros((48,), dtype=np.float32)
+		values = np.zeros((32,), dtype=np.float32)
+
+		def ditect_angle_and_distance(sx, sy, tx, ty):
+			direction = tx - sx, ty - sy
+			distance = math.sqrt(direction[0] ** 2 + direction[1] ** 2)
+			theta = (math.atan2(direction[1], direction[0]) + math.pi / 2.0) % (math.pi * 2.0)
+			return theta, distance
+
+
+		grid_width, grid_height = gui.field.comput_grid_size()
+		subdivision_width = grid_width / float(gui.field.n_grid_w) / 4.0
+		near_radius = 3.0 * subdivision_width
+		far_radius = 10.0 * subdivision_width
 
 		# 壁
-		blocks = gui.field.surrounding_wal_indicis(xi, yi, 3)
+		blocks = gui.field.surrounding_wal_indicis(xi, yi, 10)
 		for block in blocks:
-			i = Car.lookup[block[0]][block[1]]
-			if i != -1:
-				values[i] = 1.0
+			wall_x, wall_y = gui.field.compute_position_from_array_index(block[1] + xi - 10, yi + block[0] - 10)
+			theta, d = ditect_angle_and_distance(self.pos[0], self.pos[1], wall_x, wall_y)
+			index = int(theta / (math.pi * 2) * 16)
+			if d < near_radius:
+				values[index] = max(values[index], (near_radius - d) / near_radius)
+			else:
+				index += 16 
+				values[index] = max(values[index], (far_radius - d) / (far_radius - near_radius))
 
 		# 他の車
-		near_cars = self.manager.find_near_cars(xi, yi, 3)
+		near_cars = self.manager.find_near_cars(xi, yi, 10)
 		for _, __, car_index in near_cars:
 			if car_index == self.index:
 				continue
 			target_car = self.manager.get_car_at_index(car_index)
 			if target_car is None:
 				continue
-			direction = target_car.pos[0] - self.pos[0], target_car.pos[1] - self.pos[1]
-			distance = math.sqrt(direction[0] ** 2 + direction[1] ** 2) / float(sw)
-			theta = (math.atan2(direction[1], direction[0]) + math.pi / 2.0) % (math.pi * 2.0)
-			ds = 0.018
-			dsi = int(distance / ds)
-			if dsi <= 1:
-				values[int(theta / math.pi * 4.0)] = 1
-			elif dsi == 2:
-				values[int(theta / math.pi * 8.0) + 8] = 1
-			elif dsi == 3:
-				values[int(theta / math.pi * 12.0) + 24] = 1
+			theta, d = ditect_angle_and_distance(self.pos[0], self.pos[1], target_car.pos[0], target_car.pos[1])
+			index = int(theta / (math.pi * 2) * 16)
+			if d < near_radius:
+				values[index] = max(values[index], (near_radius - d) / near_radius)
+			else:
+				index += 16 
+				values[index] = max(values[index], (far_radius - d) / (far_radius - near_radius))
 
 		# 車体の向きに合わせる
-		area = int(self.steering / math.pi * 4.0)
-		ratio = self.steering % (math.pi / 4.0)
-		mix = np.roll(values[0:8], -(area + 1)) * ratio + np.roll(values[0:8], -area) * (1.0 - ratio)
-		values[0:8] = mix
+		area = int(self.steering / math.pi * 8.0)
+		ratio = self.steering % (math.pi / 8.0)
+		mix = np.roll(values[0:16], -(area + 1)) * ratio + np.roll(values[0:16], -area) * (1.0 - ratio)
+		values[0:16] = mix
 
 		area = int(self.steering / math.pi * 8.0)
 		ratio = self.steering % (math.pi / 8.0)
-		mix = np.roll(values[8:24], -(area + 1)) * ratio + np.roll(values[8:24], -area) * (1.0 - ratio)
-		values[8:24] = mix
-
-		area = int(self.steering / math.pi * 12.0)
-		ratio = self.steering % (math.pi / 12.0)
-		mix = np.roll(values[24:48], -(area + 1)) * ratio + np.roll(values[24:48], -area) * (1.0 - ratio)
-		values[24:48] = mix
+		mix = np.roll(values[16:32], -(area + 1)) * ratio + np.roll(values[16:32], -area) * (1.0 - ratio)
+		values[16:32] = mix
 
 		return values
 
@@ -736,7 +744,7 @@ class Car:
 			reward = -1.0
 		return self.rl_state, reward
 
-	def detect_collision(self, x, y):
+	def ditect_collision(self, x, y):
 		xi, yi = gui.field.compute_array_index_from_position(x, y)
 		grid_width, _ = gui.field.comput_grid_size()
 		car_radius = grid_width / float(gui.field.n_grid_w) / 8.0
@@ -776,17 +784,17 @@ class Car:
 		move_y = cos * self.speed
 		sensors = self.get_sensor_value()
 
-		rl_state = np.empty((50,), dtype=np.float32)
-		rl_state[0:48] = sensors
-		rl_state[48] = self.speed / float(self.max_speed)
-		rl_state[49] = self.steering / math.pi / 2.0
+		rl_state = np.empty((34,), dtype=np.float32)
+		rl_state[0:32] = sensors
+		rl_state[32] = self.speed / float(self.max_speed)
+		rl_state[33] = self.steering / math.pi / 2.0
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		d, crashed = self.detect_collision(self.pos[0], self.pos[1])
+		d, crashed = self.ditect_collision(self.pos[0], self.pos[1])
 		if crashed is True:
 			new_pos = (self.pos[0] + move_x, self.pos[1] - move_y)
-			new_d, second_offense = self.detect_collision(new_pos[0], new_pos[1])
+			new_d, second_offense = self.ditect_collision(new_pos[0], new_pos[1])
 			if second_offense is True and new_d < d:
 				self.speed = 0
 				move_x, move_y = 0, 0
@@ -865,8 +873,8 @@ class Canvas(app.Canvas):
 
 	def on_mouse_move(self, event):
 		self.toggle_wall(event.pos)
-		car = controller.get_car_at_index(0)
-		car.pos = event.pos[0], event.pos[1]
+		# car = controller.get_car_at_index(0)
+		# car.pos = event.pos[0], event.pos[1]
 		# xi, yi = gui.field.compute_array_index_from_position(event.pos[0], event.pos[1])
 		# x, y = gui.field.compute_position_from_array_index(xi, yi)
 		# print event.pos, xi, yi, x, y, gui.field.grid_subdiv_wall[yi, xi]
