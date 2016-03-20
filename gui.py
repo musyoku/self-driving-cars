@@ -107,17 +107,14 @@ class Field:
 
 		# 壁
 		grid_subdiv_wall = np.zeros((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
-		for x in xrange(grid_subdiv_wall.shape[1]):
-			grid_subdiv_wall[0, x] = 1 if grid_subdiv_bg[0, x] == 1 else 0
-			grid_subdiv_wall[-1, x] = 1 if grid_subdiv_bg[-1, x] == 1 else 0
-			grid_subdiv_wall[1, x] = 1 if grid_subdiv_bg[1, x] == 1 else 0
-			grid_subdiv_wall[-2, x] = 1 if grid_subdiv_bg[-2, x] == 1 else 0
-		for y in xrange(grid_subdiv_wall.shape[0]):
-			grid_subdiv_wall[y, 0] = 1 if grid_subdiv_bg[y, 0] == 1 else 0
-			grid_subdiv_wall[y, -1] = 1 if grid_subdiv_bg[y, -1] == 1 else 0
-			grid_subdiv_wall[y, 1] = 1 if grid_subdiv_bg[y, 1] == 1 else 0
-			grid_subdiv_wall[y, -2] = 1 if grid_subdiv_bg[y, -2] == 1 else 0
-
+		grid_subdiv_wall[0,:] = 1
+		grid_subdiv_wall[-1,:] = 1
+		grid_subdiv_wall[1,:] = 1
+		grid_subdiv_wall[-2,:] = 1
+		grid_subdiv_wall[:,0] = 1
+		grid_subdiv_wall[:,-1] = 1
+		grid_subdiv_wall[:,1] = 1
+		grid_subdiv_wall[:,-2] = 1
 		return grid_subdiv_bg, grid_subdiv_wall
 
 	def is_screen_position_inside_field(self, pixel_x, pixel_y, grid_width=None, grid_height=None):
@@ -146,6 +143,20 @@ class Field:
 		x = pixel_x - self.px + subdivision_width * 2
 		y = pixel_y - (screen_height - self.py - grid_height - subdivision_height * 2)
 		return int(x / subdivision_width), self.grid_subdiv_wall.shape[0] - int(y / subdivision_height) - 1
+
+	def compute_position_from_array_index(self, array_x, array_y, grid_width=None, grid_height=None):
+		grid_width, grid_height = self.comput_grid_size()
+		_, screen_height = gui.canvas.size
+		subdivision_width = grid_width / float(self.n_grid_w) / 4.0
+		subdivision_height = grid_height / float(self.n_grid_h) / 4.0
+		pixel_x = array_x * subdivision_width + self.px - subdivision_width * 2
+		pixel_y = (self.grid_subdiv_wall.shape[0] - array_y) * subdivision_height + (screen_height - self.py - grid_height - subdivision_height * 2) - subdivision_height
+		return float(pixel_x + subdivision_width / 2.0), float(pixel_y + subdivision_height / 2.0)
+
+	def random_subdivision(self):
+		b = np.argwhere(self.grid_subdiv_wall == 0)
+		r = np.random.randint(b.shape[0])
+		return b[r, 1], b[r, 0]
 
 	def is_wall(self, array_x, array_y):
 		if array_x < 0:
@@ -538,6 +549,12 @@ class Controller:
 			text.font_size = 8
 			self.textvisuals.append(text)
 
+	def respawn_stacked_cars(self, count=100):
+		for car in self.cars:
+			if car.stacked and car.stack_count > count:
+				car.respawn()
+
+
 	def configure(self, canvas, viewport):
 		for text in self.textvisuals:
 			text.transforms.configure(canvas=canvas, viewport=viewport)
@@ -618,7 +635,7 @@ class Car:
 	car_width = 12.0
 	car_height = 20.0
 	shape = [(-car_width/2.0, car_height/2.0), (car_width/2.0, car_height/2.0),(car_width/2.0, car_height/2.0), (car_width/2.0, -car_height/2.0),(car_width/2.0, -car_height/2.0), (-car_width/2.0, -car_height/2.0),(-car_width/2.0, -car_height/2.0), (-car_width/2.0, car_height/2.0),(0.0, car_height/2.0+1.0), (0.0, 1.0)]
-	max_speed = 10
+	max_speed = 10.0
 	STATE_NORMAL = 0
 	STATE_REWARD = 1
 	STATE_CRASHED = 2
@@ -629,11 +646,10 @@ class Car:
 		self.steering = 0
 		self.steering_unit = math.pi / 30.0
 		self.state_code = Car.STATE_NORMAL
-		self.pos = (gui.canvas.size[0] / 2.0 + np.random.randint(400) - 200, gui.canvas.size[1] / 2.0 + np.random.randint(400) - 200)
-		self.prev_lookup_xi, self.prev_lookup_yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
-		self.manager.lookup[self.prev_lookup_yi, self.prev_lookup_xi, self.index] = 1
-		self.over = False
+		self.stacked = False
+		self.stack_count = 0
 		self.rl_state = None
+		self.respawn()
 
 	def compute_gl_attributes(self):
 		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
@@ -655,14 +671,18 @@ class Car:
 		return positions, colors
 
 	def respawn(self):
-		self.pos = (gui.canvas.size[0] / 2.0, gui.canvas.size[1] / 2.0)
+		xi, yi = gui.field.random_subdivision()
+		x, y = gui.field.compute_position_from_array_index(xi, yi)
+		self.pos = x, y
+		self.prev_lookup_xi, self.prev_lookup_yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
+		self.manager.lookup[self.prev_lookup_yi, self.prev_lookup_xi, self.index] = 1
+		self.stacked = False
+		self.stack_count = 0
 
 	def get_sensor_value(self):
-		# 衝突判定
 		sw, sh = gui.canvas.size
 		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		values = np.zeros((48,), dtype=np.float32)
-		self.over == False
 
 		# 壁
 		blocks = gui.field.surrounding_wal_indicis(xi, yi, 3)
@@ -685,8 +705,6 @@ class Car:
 			ds = 0.018
 			dsi = int(distance / ds)
 			if dsi <= 1:
-				if dsi == 0:
-					self.over == True
 				values[int(theta / math.pi * 4.0)] = 1
 			elif dsi == 2:
 				values[int(theta / math.pi * 8.0) + 8] = 1
@@ -717,11 +735,44 @@ class Car:
 			reward = -1.0
 		return self.rl_state, reward
 
+	def detect_collision(self, x, y):
+		xi, yi = gui.field.compute_array_index_from_position(x, y)
+		grid_width, _ = gui.field.comput_grid_size()
+		car_radius = grid_width / float(gui.field.n_grid_w) / 8.0 * 0.95
+
+		distance = []
+
+		# 壁
+		blocks = gui.field.surrounding_wal_indicis(xi, yi, 2)
+		for block in blocks:
+			wall_x, wall_y = gui.field.compute_position_from_array_index(block[1] + xi - 2, yi + block[0] - 2)
+			d = math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2)
+			if d <= car_radius * 2.0:
+				distance.append(d)
+
+		# 他の車
+		near_cars = self.manager.find_near_cars(xi, yi, 2)
+		for _, __, car_index in near_cars:
+			if car_index == self.index:
+				continue
+			target_car = self.manager.get_car_at_index(car_index)
+			if target_car is None:
+				continue
+			d = math.sqrt((target_car.pos[0] - x) ** 2 + (target_car.pos[1] - y) ** 2)
+			if d <= car_radius * 2.0:
+				distance.append(d)
+
+		if len(distance) == 0:
+			return -1, False
+
+		distance = np.asarray(distance)
+		return np.amin(distance), True
+
 	def move(self):
 		cos = math.cos(-self.steering)
 		sin = math.sin(-self.steering)
-		x = -sin * self.speed		
-		y = cos * self.speed
+		move_x = -sin * self.speed		
+		move_y = cos * self.speed
 		sensors = self.get_sensor_value()
 
 		rl_state = np.empty((50,), dtype=np.float32)
@@ -731,21 +782,28 @@ class Car:
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		if sensors[0] > 0.7 and self.speed > 0:
-			self.speed = 0
+		d, crashed = self.detect_collision(self.pos[0], self.pos[1])
+		if crashed is True:
+			new_pos = (self.pos[0] + move_x, self.pos[1] - move_y)
+			new_d, second_offense = self.detect_collision(new_pos[0], new_pos[1])
+			if second_offense is True and new_d <= d:
+				self.speed = 0
+				move_x, move_y = 0, 0
 			self.state_code = Car.STATE_CRASHED
-			return
-		if sensors[4] > 0.7 and self.speed < 0:
-			self.speed = 0
-			self.state_code = Car.STATE_CRASHED
-			return
-		if self.speed > 0:
+		elif self.speed > 0:
 			self.state_code = Car.STATE_REWARD
-		if self.over:
-			self.state_code = Car.STATE_CRASHED
-		self.pos = (self.pos[0] + x, self.pos[1] - y)
+		self.pos = (self.pos[0] + move_x, self.pos[1] - move_y)
 		if gui.field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
 			self.respawn()
+
+		if self.state_code == Car.STATE_CRASHED:
+			self.stacked = True
+			self.stack_count += 1
+			if self.index == 0:
+				print self.stack_count
+		else:
+			self.stacked = False
+			self.stack_count = 0
 
 		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		if xi == self.prev_lookup_xi and yi == self.prev_lookup_yi:
@@ -757,11 +815,11 @@ class Car:
 
 	# アクセル
 	def action_throttle(self):
-		self.speed = min(self.speed + 1, self.max_speed)
+		self.speed = min(self.speed + 1.0, self.max_speed)
 
 	# ブレーキ
 	def action_brake(self):
-		self.speed = max(self.speed - 1, -self.max_speed)
+		self.speed = max(self.speed - 1.0, -self.max_speed)
 
 	# ハンドル
 	def action_steer_right(self):
@@ -810,6 +868,15 @@ class Canvas(app.Canvas):
 		self.toggle_wall(event.pos)
 		# car = controller.get_car_at_index(0)
 		# car.pos = event.pos[0], event.pos[1]
+		# xi, yi = gui.field.compute_array_index_from_position(event.pos[0], event.pos[1])
+		# x, y = gui.field.compute_position_from_array_index(xi, yi)
+		# print event.pos, xi, yi, x, y, gui.field.grid_subdiv_wall[yi, xi]
+		# blocks = gui.field.surrounding_wal_indicis(xi, yi, 1)
+		# for block in blocks:
+		# 	x, y = gui.field.compute_position_from_array_index(block[1] + xi - 1, yi + block[0] - 1)
+		# 	d = math.sqrt((x - event.pos[0]) ** 2 + (y - event.pos[1]) ** 2)
+		# 	print d
+
 
 	def on_mouse_wheel(self, event):
 		# car = controller.get_car_at_index(0)
@@ -828,6 +895,8 @@ class Canvas(app.Canvas):
 	def on_key_press(self, event):
 		if event.key == "Shift":
 			self.is_key_shift_pressed = True
+		if gui.glue:
+			gui.glue.on_key_press(event.key)
 
 	def on_key_release(self, event):
 		if event.key == "Shift":

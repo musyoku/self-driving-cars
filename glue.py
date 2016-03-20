@@ -15,14 +15,17 @@ class Glue:
 		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 50), dtype=np.float32)
 		self.prev_state = self.state.copy()
 
-
 	def start(self):
 		gui.canvas.activate_zoom()
 		gui.canvas.show()
 		app.run()
 
 	def take_action(self, car_index=0):
+		actions = ["no_op", "throttle", "brake", "right", "left"]
 		action, q_max, q_min = self.model.eps_greedy(self.state[car_index], self.exploration_rate)
+		if car_index == 0:
+			car = controller.get_car_at_index(car_index)
+			# print actions[action], car.speed
 		return action
 
 	def agent_step(self, action, reward, new_car_state, car_index=0):
@@ -40,4 +43,10 @@ class Glue:
 		if self.total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0 and self.total_steps != 0:
 			self.model.replay_experience()
 
+	def on_key_press(self, key):
+		if key == "R":
+			controller.respawn_stacked_cars()
+		print key
+
 glue = Glue()
+gui.glue = glue
