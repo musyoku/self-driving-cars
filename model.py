@@ -209,7 +209,7 @@ class DoubleDQN(Model):
 		filename = "fc.model"
 		if os.path.isfile(filename):
 			serializers.load_hdf5(filename, self.fc)
-			print "The model loaded successfully."
+			print "model loaded successfully."
 
 	def save(self):
 		serializers.save_hdf5("fc.model", self.fc)

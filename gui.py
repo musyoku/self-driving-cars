@@ -549,9 +549,9 @@ class Controller:
 			text.font_size = 8
 			self.textvisuals.append(text)
 
-	def respawn_stacked_cars(self, count=100):
+	def respawn_jammed_cars(self, count=20):
 		for car in self.cars:
-			if car.stacked and car.stack_count > count:
+			if car.jammed and car.jam_count > count:
 				car.respawn()
 
 
@@ -594,6 +594,7 @@ class Controller:
 		self.program_location.draw("triangle_strip")
 
 	def step(self):
+		return
 		if self.glue is None:
 			return
 		for car in self.cars:
@@ -646,8 +647,8 @@ class Car:
 		self.steering = 0
 		self.steering_unit = math.pi / 30.0
 		self.state_code = Car.STATE_NORMAL
-		self.stacked = False
-		self.stack_count = 0
+		self.jammed = False
+		self.jam_count = 0
 		self.rl_state = None
 		self.respawn()
 
@@ -676,8 +677,8 @@ class Car:
 		self.pos = x, y
 		self.prev_lookup_xi, self.prev_lookup_yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		self.manager.lookup[self.prev_lookup_yi, self.prev_lookup_xi, self.index] = 1
-		self.stacked = False
-		self.stack_count = 0
+		self.jammed = False
+		self.jam_count = 0
 
 	def get_sensor_value(self):
 		sw, sh = gui.canvas.size
@@ -738,7 +739,7 @@ class Car:
 	def detect_collision(self, x, y):
 		xi, yi = gui.field.compute_array_index_from_position(x, y)
 		grid_width, _ = gui.field.comput_grid_size()
-		car_radius = grid_width / float(gui.field.n_grid_w) / 8.0 * 0.95
+		car_radius = grid_width / float(gui.field.n_grid_w) / 8.0
 
 		distance = []
 
@@ -747,7 +748,7 @@ class Car:
 		for block in blocks:
 			wall_x, wall_y = gui.field.compute_position_from_array_index(block[1] + xi - 2, yi + block[0] - 2)
 			d = math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2)
-			if d <= car_radius * 2.0:
+			if d < car_radius * 2.0:
 				distance.append(d)
 
 		# 他の車
@@ -759,7 +760,7 @@ class Car:
 			if target_car is None:
 				continue
 			d = math.sqrt((target_car.pos[0] - x) ** 2 + (target_car.pos[1] - y) ** 2)
-			if d <= car_radius * 2.0:
+			if d < car_radius * 2.0:
 				distance.append(d)
 
 		if len(distance) == 0:
@@ -786,7 +787,7 @@ class Car:
 		if crashed is True:
 			new_pos = (self.pos[0] + move_x, self.pos[1] - move_y)
 			new_d, second_offense = self.detect_collision(new_pos[0], new_pos[1])
-			if second_offense is True and new_d <= d:
+			if second_offense is True and new_d < d:
 				self.speed = 0
 				move_x, move_y = 0, 0
 			self.state_code = Car.STATE_CRASHED
@@ -797,11 +798,11 @@ class Car:
 			self.respawn()
 
 		if self.state_code == Car.STATE_CRASHED:
-			self.stacked = True
-			self.stack_count += 1
+			self.jammed = True
+			self.jam_count += 1
 		else:
-			self.stacked = False
-			self.stack_count = 0
+			self.jammed = False
+			self.jam_count = 0
 
 		xi, yi = gui.field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		if xi == self.prev_lookup_xi and yi == self.prev_lookup_yi:
@@ -864,8 +865,8 @@ class Canvas(app.Canvas):
 
 	def on_mouse_move(self, event):
 		self.toggle_wall(event.pos)
-		# car = controller.get_car_at_index(0)
-		# car.pos = event.pos[0], event.pos[1]
+		car = controller.get_car_at_index(0)
+		car.pos = event.pos[0], event.pos[1]
 		# xi, yi = gui.field.compute_array_index_from_position(event.pos[0], event.pos[1])
 		# x, y = gui.field.compute_position_from_array_index(xi, yi)
 		# print event.pos, xi, yi, x, y, gui.field.grid_subdiv_wall[yi, xi]
