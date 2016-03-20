@@ -731,11 +731,11 @@ class Car:
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		if sensors[0] > 0.3 and self.speed > 0:
+		if sensors[0] > 0.7 and self.speed > 0:
 			self.speed = 0
 			self.state_code = Car.STATE_CRASHED
 			return
-		if sensors[4] > 0.3 and self.speed < 0:
+		if sensors[4] > 0.7 and self.speed < 0:
 			self.speed = 0
 			self.state_code = Car.STATE_CRASHED
 			return
