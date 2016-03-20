@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import time
 import numpy as np
 from vispy import app
 from config import config
@@ -10,6 +11,8 @@ class Glue:
 		self.model = DoubleDQN()
 		self.exploration_rate = config.rl_initial_exploration
 		self.total_steps = np.zeros((config.initial_num_car,), dtype=np.uint32)
+		self.total_time = 0
+		self.start_time = time.time()
 		controller.glue = self
 
 		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 34), dtype=np.float32)
@@ -40,6 +43,7 @@ class Glue:
 			return
 		self.total_steps[car_index] += 1
 		self.sum_reward += reward
+		self.total_time = time.time() - self.start_time
 		if car_index < config.initial_num_car:
 			self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
 			self.state[car_index, -1] = new_car_state
@@ -69,9 +73,11 @@ class Glue:
 
 			if sum_total_steps % 2000 == 0 and sum_total_steps != 0:
 				average_loss = self.sum_loss / sum_total_steps * (config.rl_action_repeat * config.rl_update_frequency)
-				self.sum_loss = 0
 				average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
-				print "total_steps:", sum_total_steps, "eps:", self.exploration_rate, "loss:", average_loss, "reward:", average_reward
+				total_minutes = int(self.total_time / 60)
+				print "total_steps:", sum_total_steps, "eps:", self.exploration_rate, "loss:", average_loss, "reward:", average_reward, "min:", total_minutes
+				self.sum_loss = 0
+				self.sum_reward = 0
 			controller.respawn_jammed_cars()
 
 	def on_key_press(self, key):
@@ -85,7 +91,6 @@ class Glue:
 			else:
 				print "learning..."
 				self.exploration_rate = self.model.exploration_rate
-		print key
 
 glue = Glue()
 gui.glue = glue
