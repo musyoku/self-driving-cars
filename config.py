@@ -25,7 +25,7 @@ class Config:
 		self.rl_method = "double_dqn"
 
 		self.rl_minibatch_size = 32
-		self.rl_replay_memory_size = 10 ** 5
+		self.rl_replay_memory_size = 10 ** 6
 		self.rl_target_network_update_frequency = 10 ** 4
 		self.rl_discount_factor = 0.99
 		self.rl_update_frequency = 4
@@ -34,7 +34,6 @@ class Config:
 		self.rl_initial_exploration = 1.0
 		self.rl_final_exploration = 0.1
 		self.rl_final_exploration_frame = 10 ** 6
-		self.rl_replay_start_size = 5 * 10 ** 4
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
 		self.q_fc_hidden_units = [256, 128, 64, 32]
@@ -56,8 +55,6 @@ class Config:
 			raise Exception("You need to add one or more hidden layers.")
 		if self.rl_method not in ["dqn", "double_dqn"]:
 			raise Exception("Invalid method.")
-		if self.rl_replay_start_size > self.rl_replay_memory_size:
-			self.rl_replay_start_size = self.rl_replay_memory_size
 		if self.rl_action_repeat < 1:
 			self.rl_action_repeat = 1
 

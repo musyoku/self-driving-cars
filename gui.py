@@ -397,7 +397,7 @@ void main() {
 		gl_FragColor = mix(vec4(u_near_color_inactive.rgb, result.a), result, rat);
 		return;
 	}
-
+	discard;
 }
 """
 
@@ -527,6 +527,7 @@ void main() {
 		gl_FragColor = mix(vec4(u_line_color.rgb, fract(1 + diff)), vec4(u_line_color.rgb, 1.0 - fract(diff)), float(diff > 0));
 		return;
 	}
+	discard;
 }
 """
 
@@ -645,7 +646,7 @@ class Car:
 		self.manager = manager
 		self.speed = 0
 		self.steering = 0
-		self.steering_unit = math.pi / 30.0
+		self.steering_unit = math.pi / 15.0
 		self.state_code = Car.STATE_NORMAL
 		self.jammed = False
 		self.jam_count = 0
@@ -702,7 +703,7 @@ class Car:
 		for block in blocks:
 			wall_x, wall_y = gui.field.compute_position_from_array_index(block[1] + xi - 10, yi + block[0] - 10)
 			theta, d = ditect_angle_and_distance(self.pos[0], self.pos[1], wall_x, wall_y)
-			index = int(theta / (math.pi * 2) * 16)
+			index = int(theta / (math.pi * 2 + 1e-8) * 16) % 16
 			if d < near_radius:
 				values[index] = max(values[index], (near_radius - d) / near_radius)
 			else:
@@ -718,7 +719,7 @@ class Car:
 			if target_car is None:
 				continue
 			theta, d = ditect_angle_and_distance(self.pos[0], self.pos[1], target_car.pos[0], target_car.pos[1])
-			index = int(theta / (math.pi * 2) * 16)
+			index = int(theta / (math.pi * 2 + 1e-8) * 16) % 16
 			if d < near_radius:
 				values[index] = max(values[index], (near_radius - d) / near_radius)
 			else:
@@ -726,12 +727,12 @@ class Car:
 				values[index] = max(values[index], (far_radius - d) / (far_radius - near_radius))
 
 		# 車体の向きに合わせる
-		area = int(self.steering / math.pi * 8.0)
+		area = int(self.steering / (math.pi + 1e-8) * 8.0)
 		ratio = self.steering % (math.pi / 8.0)
 		mix = np.roll(values[0:16], -(area + 1)) * ratio + np.roll(values[0:16], -area) * (1.0 - ratio)
 		values[0:16] = mix
 
-		area = int(self.steering / math.pi * 8.0)
+		area = int(self.steering / (math.pi + 1e-8) * 8.0)
 		ratio = self.steering % (math.pi / 8.0)
 		mix = np.roll(values[16:32], -(area + 1)) * ratio + np.roll(values[16:32], -area) * (1.0 - ratio)
 		values[16:32] = mix
@@ -756,7 +757,7 @@ class Car:
 		for block in blocks:
 			wall_x, wall_y = gui.field.compute_position_from_array_index(block[1] + xi - 2, yi + block[0] - 2)
 			d = math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2)
-			if d < car_radius * 2.0:
+			if d < car_radius * 2.0 * 1.1:
 				distance.append(d)
 
 		# 他の車
@@ -774,8 +775,7 @@ class Car:
 		if len(distance) == 0:
 			return -1, False
 
-		distance = np.asarray(distance)
-		return np.amin(distance), True
+		return np.amin(np.asarray(distance)), True
 
 	def move(self):
 		cos = math.cos(-self.steering)
@@ -924,6 +924,7 @@ class Canvas(app.Canvas):
 class Gui:
 	def __init__(self):
 		self.canvas = Canvas()
+		gloo.set_state(clear_color="#2e302f", depth_test=False, blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
 		self.infographic = Infographic()
 		self.field = Field()
 		# gui.canvas.measure_fps()

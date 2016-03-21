@@ -41,9 +41,7 @@ class Glue:
 	def agent_step(self, action, reward, new_car_state, car_index=0):
 		if car_index >= self.total_steps.shape[0]:
 			return
-		self.total_steps[car_index] += 1
-		self.sum_reward += reward
-		self.total_time = time.time() - self.start_time
+			
 		if car_index < config.initial_num_car:
 			self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
 			self.state[car_index, -1] = new_car_state
@@ -51,14 +49,18 @@ class Glue:
 			self.model.store_transition_in_replay_memory(self.prev_state[car_index], action, reward, self.state[car_index])
 			self.prev_state[car_index] = self.state[car_index]
 
-		self.model.decrease_exploration_rate()
-		self.exploration_rate = self.model.exploration_rate
-
-		sum_total_steps = self.total_steps.sum()
-
 		if self.evaluation_mode:
 			pass
 		else:
+			self.total_steps[car_index] += 1
+			self.sum_reward += reward
+			self.total_time = time.time() - self.start_time
+
+			self.model.decrease_exploration_rate()
+			self.exploration_rate = self.model.exploration_rate
+
+			sum_total_steps = self.total_steps.sum()
+
 			if sum_total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0 and sum_total_steps != 0:
 				loss = self.model.replay_experience()
 				self.sum_loss += loss.data
@@ -89,7 +91,7 @@ class Glue:
 				print "evaluating..."
 				self.exploration_rate = 0.0
 			else:
-				print "learning..."
+				print "training..."
 				self.exploration_rate = self.model.exploration_rate
 
 glue = Glue()

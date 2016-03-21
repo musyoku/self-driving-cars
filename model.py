@@ -58,10 +58,10 @@ class Model:
 		]
 		self.total_replay_memory = 0
 
-	def get_action_with_index(self, i):
+	def get_action_for_index(self, i):
 		return config.actions[i]
 
-	def get_index_with_action(self, action):
+	def get_index_for_action(self, action):
 		return config.actions.index(action)
 
 	def decrease_exploration_rate(self):
@@ -124,7 +124,7 @@ class DoubleDQN(Model):
 				q_max = np.max(q.data)
 				q_min = np.min(q.data)
 
-		action = self.get_action_with_index(action_index)
+		action = self.get_action_for_index(action_index)
 		return action, q_max, q_min
 
 	def store_transition_in_replay_memory(self, state, action, reward, next_state):
@@ -155,8 +155,8 @@ class DoubleDQN(Model):
 
 		for i in xrange(n_batch):
 			max_action_index = max_action_indices[i]
-			target_value = np.sign(reward[i]) + config.rl_discount_factor * target_q.data[i][max_action_indices[i]]
-			action_index = self.get_index_with_action(action[i])
+			target_value = reward[i] + config.rl_discount_factor * target_q.data[i][max_action_indices[i]]
+			action_index = self.get_index_for_action(action[i])
 			old_value = target[i, action_index]
 			diff = target_value - old_value
 			if diff > 1.0:
