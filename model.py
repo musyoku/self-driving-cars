@@ -53,7 +53,7 @@ class Model:
 		self.replay_memory = [
 			np.zeros(shape_state, dtype=np.float32),
 			np.zeros(shape_action, dtype=np.uint8),
-			np.zeros(shape_action, dtype=np.int8),
+			np.zeros(shape_action, dtype=np.float32),
 			np.zeros(shape_state, dtype=np.float32)
 		]
 		self.total_replay_memory = 0

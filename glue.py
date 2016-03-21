@@ -4,7 +4,7 @@ import numpy as np
 from vispy import app
 from config import config
 from model import DoubleDQN
-from gui import controller, gui
+from gui import controller, canvas
 
 class Glue:
 	def __init__(self):
@@ -14,6 +14,7 @@ class Glue:
 		self.total_time = 0
 		self.start_time = time.time()
 		controller.glue = self
+		canvas.glue = self
 
 		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 34), dtype=np.float32)
 		self.prev_state = self.state.copy()
@@ -25,36 +26,34 @@ class Glue:
 		self.population_phase = True
 
 	def start(self):
-		gui.canvas.activate_zoom()
-		gui.canvas.show()
+		canvas.activate_zoom()
+		canvas.show()
 		app.run()
 
 	def take_action_batch(self):
 		if self.total_steps % config.rl_action_repeat == 0:
-			action_batch, q_max_batch, q_min_batch = self.model.eps_greedy(self.state, self.exploration_rate)
-			self.last_action = action_batch
-			return action_batch, q_max_batch, q_min_batch
+			action, q_max, q_min = self.model.eps_greedy(self.state, self.exploration_rate)
+			self.last_action = action
+			return action, q_max, q_min
 		return self.last_action, None, None
 
-	def agent_step(self, action, reward, new_car_state, q_max, q_min, car_index=0):
+	def agent_step(self, action, reward, new_car_state, q_max=None, q_min=None, car_index=0):
 		if car_index >= config.initial_num_car:
 			return
 
 		self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
-		self.state[car_index, 0] = new_car_state
+		self.state[car_index, -1] = new_car_state
 
 		if self.evaluation_phase:
 			return
-
+			
 		self.model.store_transition_in_replay_memory(self.prev_state[car_index], action, reward, self.state[car_index])
 		self.prev_state[car_index] = self.state[car_index]
+
 		self.total_steps += 1
 
 		if self.population_phase:
-			if self.total_steps % 1000 == 0:
-				print "populating the replay memory", self.total_steps, "/", config.rl_replay_start_size
-			if self.total_steps % config.rl_replay_start_size == 0 and self.total_steps != 0:
-				self.population_phase = False
+			print "populating the replay memory.", self.total_steps, "/", config.rl_replay_start_size
 			return
 
 		self.sum_reward += reward
@@ -79,11 +78,10 @@ class Glue:
 			average_loss = self.sum_loss / self.total_steps * (config.rl_action_repeat * config.rl_update_frequency)
 			average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
 			total_minutes = int(self.total_time / 60)
-			print "total_steps:", self.total_steps, "eps:", self.exploration_rate, "loss:", average_loss, "reward:", average_reward, 
+			print "total_steps:", self.total_steps, "eps:", "%.3f" % self.exploration_rate, "loss:", "%.6f" % average_loss, "reward:", "%.3f" % average_reward,
 			if q_max:
-				print "q_max:", q_max,
-			if q_min:
-				print "q_min:", q_min,
+				print "q_max:", q_max
+				print "q_min:", q_min
 			print "min:", total_minutes
 			self.sum_loss = 0
 			self.sum_reward = 0
@@ -112,4 +110,3 @@ class Glue:
 				self.exploration_rate = self.model.exploration_rate
 
 glue = Glue()
-gui.glue = glue
