@@ -65,7 +65,7 @@ class Model:
 		return config.actions.index(action)
 
 	def decrease_exploration_rate(self):
-		self.exploration_rate = max(self.exploration_rate - 1.0 / config.rl_final_exploration_frame, config.rl_final_exploration)
+		self.exploration_rate = max(self.exploration_rate - 1.0 / config.rl_final_exploration_step, config.rl_final_exploration)
 
 class DoubleDQN(Model):
 	def __init__(self):
@@ -101,31 +101,32 @@ class DoubleDQN(Model):
 		fc.apply_batchnorm_to_input = config.q_fc_apply_batchnorm_to_input
 		if config.use_gpu:
 			fc.to_gpu()
-
 		return fc
 
-	def eps_greedy(self, state, exploration_rate):
+	def eps_greedy(self, state_batch, exploration_rate):
+		if state_batch.ndim == 1:
+			state_batch = state_batch.reshape(1, -1)
 		prop = np.random.uniform()
-		q_max = None
-		q_min = None
+		q_max = np.zeros((state_batch.shape[0],), dtype=np.float32)
+		q_min = np.zeros((state_batch.shape[0],), dtype=np.float32)
 		if prop < exploration_rate:
-			action_index = np.random.randint(0, len(config.actions))
+			action_batch = np.random.randint(0, len(config.actions), (state_batch.shape[0],))
 		else:
-			state = Variable(state.reshape((1, config.rl_history_length * 34)))
+			state_batch = Variable(state_batch)
 			if config.use_gpu:
-				state.to_gpu()
-			q = self.compute_q_variable(state, test=True)
+				state_batch.to_gpu()
+			q = self.compute_q_variable(state_batch, test=True)
 			if config.use_gpu:
-				action_index = cuda.to_cpu(cuda.cupy.argmax(q.data))
-				q_max = cuda.to_cpu(cuda.cupy.max(q.data))
-				q_min = cuda.to_cpu(cuda.cupy.min(q.data))
+				action_batch = cuda.to_cpu(cuda.cupy.argmax(q.data, axis=1))
+				q_max = cuda.to_cpu(cuda.cupy.max(q.data, axis=1))
+				q_min = cuda.to_cpu(cuda.cupy.min(q.data, axis=1))
 			else:
-				action_index = np.argmax(q.data)
-				q_max = np.max(q.data)
-				q_min = np.min(q.data)
-
-		action = self.get_action_for_index(action_index)
-		return action, q_max, q_min
+				action_batch = np.argmax(q.data, axis=1)
+				q_max = np.max(q.data, axis=1)
+				q_min = np.min(q.data, axis=1)
+		for i in xrange(action_batch.shape[0]):
+			action_batch[i] = self.get_action_for_index(action_batch[i])
+		return action_batch, q_max, q_min
 
 	def store_transition_in_replay_memory(self, state, action, reward, next_state):
 		index = self.total_replay_memory % config.rl_replay_memory_size

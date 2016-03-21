@@ -532,11 +532,11 @@ void main() {
 """
 
 class Controller:
-	ACTION_NO_OPS = 0
-	ACTION_THROTTLE = 1
-	ACTION_BRAKE = 2
-	ACTION_STEER_RIGHT = 3
-	ACTION_STEER_LEFT = 4
+	ACTION_NO_OPS = 5
+	ACTION_THROTTLE = 6
+	ACTION_BRAKE = 7
+	ACTION_STEER_RIGHT = 8
+	ACTION_STEER_LEFT = 9
 	def __init__(self):
 		self.cars = []
 		self.lookup = np.zeros((gui.field.n_grid_h * 4 + 4, gui.field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
@@ -598,9 +598,9 @@ class Controller:
 	def step(self):
 		if self.glue is None:
 			return
-		for car in self.cars:
-			state = car.rl_state
-			action = self.glue.take_action(car_index=car.index)
+		action_batch, q_max_batch, q_min_batch = self.glue.take_action_batch()
+		for i, car in enumerate(self.cars):
+			action = action_batch[i]
 			if action == Controller.ACTION_NO_OPS:
 				pass
 			elif action == Controller.ACTION_THROTTLE:
@@ -615,8 +615,8 @@ class Controller:
 				raise NotImplementedError()
 			car.move()
 			new_state, reward = car.get_rl_state_and_reward()
-			if new_state is not None and state is not None:
-				self.glue.agent_step(action, reward, new_state, car_index=car.index)
+			if new_state is not None:
+				self.glue.agent_step(action, reward, new_state, q_max_batch[i], q_min_batch[i], car_index=car.index)
 			text = self.textvisuals[car.index]
 			text.pos = car.pos[0] + 10, car.pos[1] - 10
 
@@ -742,7 +742,7 @@ class Car:
 	def get_rl_state_and_reward(self):
 		reward = max(self.speed / float(self.max_speed), 0.0)
 		if self.state_code == Car.STATE_CRASHED:
-			reward = -1.0
+			reward = config.rl_collision_penalty
 		return self.rl_state, reward
 
 	def ditect_collision(self, x, y):

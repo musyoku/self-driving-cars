@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import argparse
 from activations import activations
 
 class Config:
@@ -13,7 +14,7 @@ class Config:
 		# 2: ブレーキ
 		# 3: ハンドル右
 		# 4: ハンドル左
-		self.actions = [0, 1, 2, 3, 4]
+		self.actions = [5, 6, 7, 8, 9]
 
 		# 直近n個のセンサ入力をまとめて1つの状態とする
 		self.rl_history_length = 3
@@ -33,7 +34,9 @@ class Config:
 		self.rl_gradient_momentum = 0.95
 		self.rl_initial_exploration = 1.0
 		self.rl_final_exploration = 0.1
-		self.rl_final_exploration_frame = 10 ** 6
+		self.rl_final_exploration_step = 10 ** 6
+		self.rl_replay_start_size = 10 ** 5
+		self.rl_collision_penalty = -1.0
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
 		self.q_fc_hidden_units = [256, 128, 64, 32]
@@ -46,7 +49,7 @@ class Config:
 		self.q_fc_apply_batchnorm_to_input = False
 
 		## Default: 1.0
-		self.q_wscale = 1.0
+		self.q_wscale = 0.1
 
 	def check(self):
 		if self.q_fc_activation_function not in activations:
@@ -57,5 +60,16 @@ class Config:
 			raise Exception("Invalid method.")
 		if self.rl_action_repeat < 1:
 			self.rl_action_repeat = 1
+		if self.rl_replay_start_size > self.rl_replay_memory_size:
+			self.rl_replay_start_size = self.rl_replay_memory_size
 
 config = Config()
+
+# Arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--rl_initial_exploration", type=float, default=config.rl_initial_exploration)
+parser.add_argument("--rl_collision_penalty", type=float, default=config.rl_collision_penalty)
+args = parser.parse_args()
+
+config.rl_initial_exploration = args.rl_initial_exploration
+config.rl_collision_penalty = args.rl_collision_penalty

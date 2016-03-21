@@ -10,7 +10,7 @@ class Glue:
 	def __init__(self):
 		self.model = DoubleDQN()
 		self.exploration_rate = config.rl_initial_exploration
-		self.total_steps = np.zeros((config.initial_num_car,), dtype=np.uint32)
+		self.total_steps = 0
 		self.total_time = 0
 		self.start_time = time.time()
 		controller.glue = self
@@ -21,75 +21,92 @@ class Glue:
 		self.sum_loss = 0
 		self.sum_reward = 0
 
-		self.evaluation_mode = False
+		self.evaluation_phase = False
+		self.population_phase = True
 
 	def start(self):
 		gui.canvas.activate_zoom()
 		gui.canvas.show()
 		app.run()
 
-	def take_action(self, car_index=0):
-		if car_index >= self.total_steps.shape[0]:
-			return config.actions[np.random.randint(len(config.actions))]
-		actions = ["no_op", "throttle", "brake", "right", "left"]
-		if self.total_steps[car_index] % config.rl_action_repeat == 0:
-			action, q_max, q_min = self.model.eps_greedy(self.state[car_index], self.exploration_rate)
-			self.last_action[car_index] = action
-			return action
-		return self.last_action[car_index]
+	def take_action_batch(self):
+		if self.total_steps % config.rl_action_repeat == 0:
+			action_batch, q_max_batch, q_min_batch = self.model.eps_greedy(self.state, self.exploration_rate)
+			self.last_action = action_batch
+			return action_batch, q_max_batch, q_min_batch
+		return self.last_action, None, None
 
-	def agent_step(self, action, reward, new_car_state, car_index=0):
-		if car_index >= self.total_steps.shape[0]:
+	def agent_step(self, action, reward, new_car_state, q_max, q_min, car_index=0):
+		if car_index >= config.initial_num_car:
 			return
-			
-		if car_index < config.initial_num_car:
-			self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
-			self.state[car_index, -1] = new_car_state
-			
-			self.model.store_transition_in_replay_memory(self.prev_state[car_index], action, reward, self.state[car_index])
-			self.prev_state[car_index] = self.state[car_index]
 
-		if self.evaluation_mode:
-			pass
-		else:
-			self.total_steps[car_index] += 1
-			self.sum_reward += reward
-			self.total_time = time.time() - self.start_time
+		self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
+		self.state[car_index, 0] = new_car_state
 
-			self.model.decrease_exploration_rate()
-			self.exploration_rate = self.model.exploration_rate
+		if self.evaluation_phase:
+			return
 
-			sum_total_steps = self.total_steps.sum()
+		self.model.store_transition_in_replay_memory(self.prev_state[car_index], action, reward, self.state[car_index])
+		self.prev_state[car_index] = self.state[car_index]
+		self.total_steps += 1
 
-			if sum_total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0 and sum_total_steps != 0:
-				loss = self.model.replay_experience()
-				self.sum_loss += loss.data
+		if self.population_phase:
+			if self.total_steps % 1000 == 0:
+				print "populating the replay memory", self.total_steps, "/", config.rl_replay_start_size
+			if self.total_steps % config.rl_replay_start_size == 0 and self.total_steps != 0:
+				self.population_phase = False
+			return
 
-			if sum_total_steps % config.rl_target_network_update_frequency == 0 and sum_total_steps != 0:
-				print "target network has been updated."
-				self.model.update_target()
+		self.sum_reward += reward
+		self.total_time = time.time() - self.start_time
 
-			if sum_total_steps % 10000 == 0 and sum_total_steps != 0:
-				print "model has been saved."
-				self.model.save()
+		self.model.decrease_exploration_rate()
+		self.exploration_rate = self.model.exploration_rate
 
-			if sum_total_steps % 2000 == 0 and sum_total_steps != 0:
-				average_loss = self.sum_loss / sum_total_steps * (config.rl_action_repeat * config.rl_update_frequency)
-				average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
-				total_minutes = int(self.total_time / 60)
-				print "total_steps:", sum_total_steps, "eps:", self.exploration_rate, "loss:", average_loss, "reward:", average_reward, "min:", total_minutes
-				self.sum_loss = 0
-				self.sum_reward = 0
-			controller.respawn_jammed_cars()
+		if self.total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0 and self.total_steps != 0:
+			loss = self.model.replay_experience()
+			self.sum_loss += loss.data
+
+		if self.total_steps % config.rl_target_network_update_frequency == 0 and self.total_steps != 0:
+			print "target network has been updated."
+			self.model.update_target()
+
+		if self.total_steps % 10000 == 0 and self.total_steps != 0:
+			print "model has been saved."
+			self.model.save()
+
+		if self.total_steps % 2000 == 0 and self.total_steps != 0:
+			average_loss = self.sum_loss / self.total_steps * (config.rl_action_repeat * config.rl_update_frequency)
+			average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
+			total_minutes = int(self.total_time / 60)
+			print "total_steps:", self.total_steps, "eps:", self.exploration_rate, "loss:", average_loss, "reward:", average_reward, 
+			if q_max:
+				print "q_max:", q_max,
+			if q_min:
+				print "q_min:", q_min,
+			print "min:", total_minutes
+			self.sum_loss = 0
+			self.sum_reward = 0
+		controller.respawn_jammed_cars()
 
 	def on_key_press(self, key):
 		if key == "R":
 			controller.respawn_jammed_cars()
 		if key == "E":
-			self.evaluation_mode = not self.evaluation_mode
-			if self.evaluation_mode:
+			self.population_phase = False
+			self.evaluation_phase = not self.evaluation_phase
+			if self.evaluation_phase:
 				print "evaluating..."
 				self.exploration_rate = 0.0
+			else:
+				print "training..."
+				self.exploration_rate = self.model.exploration_rate
+		if key == "P":
+			self.evaluation_phase = False
+			self.population_phase = not self.population_phase
+			if self.population_phase:
+				print "populating the replay memory..."
+				self.exploration_rate = 1.0
 			else:
 				print "training..."
 				self.exploration_rate = self.model.exploration_rate
