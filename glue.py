@@ -53,7 +53,10 @@ class Glue:
 		self.total_steps += 1
 
 		if self.population_phase:
-			print "populating the replay memory.", self.total_steps, "/", config.rl_replay_start_size
+			if self.total_steps % 5000 == 0:
+				print "populating the replay memory.", self.total_steps, "/", config.rl_replay_start_size
+			if self.total_steps > config.rl_replay_start_size:
+				self.population_phase = False
 			return
 
 		self.sum_reward += reward
@@ -62,19 +65,19 @@ class Glue:
 		self.model.decrease_exploration_rate()
 		self.exploration_rate = self.model.exploration_rate
 
-		if self.total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0 and self.total_steps != 0:
+		if self.total_steps % (config.rl_action_repeat * config.rl_update_frequency) == 0:
 			loss = self.model.replay_experience()
 			self.sum_loss += loss.data
 
-		if self.total_steps % config.rl_target_network_update_frequency == 0 and self.total_steps != 0:
+		if self.total_steps % config.rl_target_network_update_frequency == 0:
 			print "target network has been updated."
 			self.model.update_target()
 
-		if self.total_steps % 10000 == 0 and self.total_steps != 0:
+		if self.total_steps % 10000 == 0:
 			print "model has been saved."
 			self.model.save()
 
-		if self.total_steps % 2000 == 0 and self.total_steps != 0:
+		if self.total_steps % 2000 == 0:
 			average_loss = self.sum_loss / self.total_steps * (config.rl_action_repeat * config.rl_update_frequency)
 			average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
 			total_minutes = int(self.total_time / 60)
