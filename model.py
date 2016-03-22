@@ -57,6 +57,14 @@ class Model:
 			np.zeros(shape_state, dtype=np.float32)
 		]
 		self.total_replay_memory = 0
+		
+	def store_transition_in_replay_memory(self, state, action, reward, next_state):
+		index = self.total_replay_memory % config.rl_replay_memory_size
+		self.replay_memory[0][index] = state
+		self.replay_memory[1][index] = action
+		self.replay_memory[2][index] = reward
+		self.replay_memory[3][index] = next_state
+		self.total_replay_memory += 1
 
 	def get_action_for_index(self, i):
 		return config.actions[i]
@@ -128,14 +136,6 @@ class DoubleDQN(Model):
 		for i in xrange(action_batch.shape[0]):
 			action_batch[i] = self.get_action_for_index(action_batch[i])
 		return action_batch, q_max, q_min
-
-	def store_transition_in_replay_memory(self, state, action, reward, next_state):
-		index = self.total_replay_memory % config.rl_replay_memory_size
-		self.replay_memory[0][index] = state
-		self.replay_memory[1][index] = action
-		self.replay_memory[2][index] = reward
-		self.replay_memory[3][index] = next_state
-		self.total_replay_memory += 1
 
 	def forward_one_step(self, state, action, reward, next_state, test=False):
 		xp = cuda.cupy if config.use_gpu else np

@@ -39,7 +39,7 @@ class Config:
 		self.rl_collision_penalty = -1.0
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
-		self.q_fc_hidden_units = [256, 128, 64, 32]
+		self.q_fc_hidden_units = [600, 400, 200, 100, 50]
 
 		## See activations.py
 		self.q_fc_activation_function = "elu"

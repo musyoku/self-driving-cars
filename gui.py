@@ -230,7 +230,7 @@ class Field:
 		a_position = []
 		a_point_size = []
 		for nw in xrange(self.n_grid_w):
-			x = lw / float(self.n_grid_w) * nw + self.pixel_x	# pixel
+			x = lw / float(self.n_grid_w) * nw + self.px	# pixel
 			x = 2.0 * x / float(sw) - 1.0	# gl coord
 			for nh in xrange(self.n_grid_h):
 				y = lh / float(self.n_grid_h) * nh + self.py	# pixel
@@ -283,6 +283,7 @@ class Field:
 		self.gl_program_bg.draw("triangles")
 		if self.enable_grid:
 			self.gl_program_grid_point.draw("points")
+
 
 infographic_sensor_vertex = """
 attribute vec2 a_position;
@@ -393,7 +394,7 @@ void main() {
 }
 """
 
-class Infographic():
+class Interface():
 	def __init__(self):
 		self.gl_program_sensor = gloo.Program(infographic_sensor_vertex, infographic_sensor_fragment)
 		self.gl_program_sensor["u_near_color"] = color_infographic_sensor_near
@@ -409,8 +410,11 @@ class Infographic():
 		self.text_title_field = visuals.TextVisual("SELF-DRIVING CARS", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
 		self.text_title_field.font_size = 16
 
-		self.text_title_data = visuals.TextVisual("STATUS", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
-		self.text_title_data.font_size = 16
+		self.text_title_status = visuals.TextVisual("STATUS", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
+		self.text_title_status.font_size = 16
+
+		self.text_title_q = visuals.TextVisual("Q", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
+		self.text_title_q.font_size = 16
 
 		self.text_title_sensor = visuals.TextVisual("SENSOR", color=self.color_hex_str_text, bold=True, anchor_x="left", anchor_y="top")
 		self.text_title_sensor.font_size = 16
@@ -422,18 +426,21 @@ class Infographic():
 		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
 
 		self.text_title_field.pos = field.px - sgw * 1.5, sh - lh - field.py - sgh * 3.5	# pixel
-		self.text_title_data.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 3.5	# pixel
+		self.text_title_status.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 3.5	# pixel
+		self.text_title_q.pos = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 4.5	# pixel
 		self.text_title_sensor.pos = field.px + lw + sgw * 3.5, sh - field.py - sgh * 8.5	# pixel
 
 	def configure(self, canvas, viewport):
 		self.text_title_field.transforms.configure(canvas=canvas, viewport=viewport)
-		self.text_title_data.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_title_status.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_title_q.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_title_sensor.transforms.configure(canvas=canvas, viewport=viewport)
 		
 	def draw(self):
 		self.set_text_positions()
 		self.text_title_field.draw()
-		self.text_title_data.draw()
+		self.text_title_status.draw()
+		self.text_title_q.draw()
 		self.text_title_sensor.draw()
 		self.draw_sensor()
 
@@ -464,12 +471,8 @@ class Infographic():
 		a_position.append((base_x + width, base_y))
 		a_position.append((base_x, base_y + height))
 		a_position.append((base_x + width, base_y + height))
-		a_position.append(a_position[1])
-		a_position.append(a_position[2])
-		a_position.append(a_position[3])
 		self.gl_program_sensor["a_position"] = a_position			# gl coord
-
-		self.gl_program_sensor.draw("triangles")
+		self.gl_program_sensor.draw("triangle_strip")
 
 controller_cars_vertex = """
 attribute vec2 a_position;
@@ -489,6 +492,7 @@ void main() {
 	gl_FragColor = v_color;
 }
 """
+
 controller_location_vertex = """
 attribute vec2 a_position;
 
@@ -517,10 +521,28 @@ void main() {
 }
 """
 
+controller_q_vertex = """
+attribute vec2 a_position;
+
+void main() {
+	gl_Position = vec4(a_position, 0.0, 1.0);
+}
+"""
+
+controller_q_fragment = """
+uniform vec4 u_bg_color;
+uniform vec4 u_bar_color;
+uniform float limit;
+
+void main() {
+	gl_FragColor = u_bg_color;
+}
+"""
+
 class Controller:
 	ACTION_NO_OPS = 5
-	ACTION_THROTTLE = 6
-	ACTION_BRAKE = 7
+	ACTION_FORWARD = 6
+	ACTION_BACKWARD = 7
 	ACTION_STEER_RIGHT = 8
 	ACTION_STEER_LEFT = 9
 	def __init__(self):
@@ -529,14 +551,30 @@ class Controller:
 		self.gl_program_cars = gloo.Program(controller_cars_vertex, controller_cars_fragment)
 		self.gl_program_location = gloo.Program(controller_location_vertex, controller_location_fragment)
 		self.gl_program_location["u_line_color"] = color_yellow
-		self.textvisuals = []
+		self.gl_program_q_forward = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_forward["u_bg_color"] = color_black
+		self.gl_program_q_backward = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_backward["u_bg_color"] = color_black
+		self.gl_program_q_right = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_right["u_bg_color"] = color_black
+		self.gl_program_q_left = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_left["u_bg_color"] = color_black
+		self.text_q_forward = visuals.TextVisual("forward", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_forward.font_size = 10
+		self.text_q_backward = visuals.TextVisual("backward", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_backward.font_size = 10
+		self.text_q_right = visuals.TextVisual("right", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_right.font_size = 10
+		self.text_q_left = visuals.TextVisual("left", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_left.font_size = 10
+		self.car_textvisuals = []
 		for i in xrange(config.initial_num_car):
 			car = Car(self, index=i)
 			self.cars.append(car)
 			car.respawn()
 			text = visuals.TextVisual("car %d" % i, color="white", anchor_x="left", anchor_y="top")
 			text.font_size = 9
-			self.textvisuals.append(text)
+			self.car_textvisuals.append(text)
 
 	def respawn_jammed_cars(self, count=500):
 		for car in self.cars:
@@ -544,8 +582,12 @@ class Controller:
 				car.respawn()
 
 	def configure(self, canvas, viewport):
-		for text in self.textvisuals:
+		for text in self.car_textvisuals:
 			text.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_q_forward.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_q_backward.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_q_right.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_q_left.transforms.configure(canvas=canvas, viewport=viewport)
 
 	def remove_from_location_lookup(self, array_x, array_y, car_index):
 		if array_x is None or array_y is None:
@@ -582,7 +624,7 @@ class Controller:
 		self.gl_program_cars["a_color"] = a_color
 		self.gl_program_cars.draw("lines")
 
-		for text in self.textvisuals:
+		for text in self.car_textvisuals:
 			text.draw()
 
 		# Circle around car_0
@@ -601,6 +643,48 @@ class Controller:
 		self.gl_program_location["a_position"] = a_position					# gl coord
 		self.gl_program_location.draw("triangle_strip")
 
+		lw ,lh = field.comput_grid_size()		# pixel
+		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
+		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
+		gl_base_x = 2.0 * (field.px + lw + sgw * 8.0) / sw - 1		# gl coord
+		gl_base_y = 2.0 * (lh + field.py - sgh * 7.75) / sh - 1		# gl coord
+		gl_width = sgw * 5 / sw * 2.0				# gl space
+		gl_height = sgh / sh * 2.0					# gl space
+
+		def register(x, y):
+			a_position = []
+			a_position.append((x, y))
+			a_position.append((x + gl_width, y))
+			a_position.append((x, y + gl_height))
+			a_position.append((x + gl_width, y + gl_height))
+			return a_position
+			
+		self.gl_program_q_forward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		self.gl_program_q_forward.draw("triangle_strip")
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_backward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		self.gl_program_q_backward.draw("triangle_strip")
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_right["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		self.gl_program_q_right.draw("triangle_strip")
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_left["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		self.gl_program_q_left.draw("triangle_strip")
+		
+		base_x, base_y = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 7.0	# pixel
+		self.text_q_forward.pos = base_x, base_y
+		self.text_q_forward.draw()
+		base_y += sgh * 1.5
+		self.text_q_backward.pos = base_x, base_y
+		self.text_q_backward.draw()
+		base_y += sgh * 1.5
+		self.text_q_right.pos = base_x, base_y
+		self.text_q_right.draw()
+		base_y += sgh * 1.5
+		self.text_q_left.pos = base_x, base_y
+		self.text_q_left.draw()
+
+
 	def step(self):
 		if self.glue is None:
 			return
@@ -609,10 +693,10 @@ class Controller:
 			action = action_batch[i]
 			if action == Controller.ACTION_NO_OPS:
 				pass
-			elif action == Controller.ACTION_THROTTLE:
-				car.action_throttle()
-			elif action == Controller.ACTION_BRAKE:
-				car.action_brake()
+			elif action == Controller.ACTION_FORWARD:
+				car.action_forward()
+			elif action == Controller.ACTION_BACKWARD:
+				car.action_backward()
 			elif action == Controller.ACTION_STEER_RIGHT:
 				car.action_steer_right()
 			elif action == Controller.ACTION_STEER_LEFT:
@@ -626,8 +710,8 @@ class Controller:
 					self.glue.agent_step(action, reward, new_state, None, None, car_index=car.index)
 				else:
 					self.glue.agent_step(action, reward, new_state, q_max_batch[i], q_min_batch[i], car_index=car.index)
-			text = self.textvisuals[car.index]
-			text.pos = car.pos[0] + 10, car.pos[1] - 10
+			text = self.car_textvisuals[car.index]
+			text.pos = car.pos[0] + 12, car.pos[1] - 10
 
 	def find_near_cars(self, array_x, array_y, radius=1):
 		start_xi = 0 if array_x - radius < 0 else array_x - radius
@@ -845,15 +929,12 @@ class Car:
 		self.prev_lookup_xi = xi
 		self.prev_lookup_yi = yi
 
-	# アクセル
-	def action_throttle(self):
+	def action_forward(self):
 		self.speed = min(self.speed + 1.0, self.max_speed)
 
-	# ブレーキ
-	def action_brake(self):
+	def action_backward(self):
 		self.speed = max(self.speed - 1.0, -self.max_speed)
 
-	# ハンドル
 	def action_steer_right(self):
 		if self.speed > 0:
 			self.steering = (self.steering + self.steering_unit) % (math.pi * 2.0)
@@ -882,7 +963,7 @@ class Canvas(app.Canvas):
 		gloo.clear(color="#2e302f")
 		gloo.set_viewport(0, 0, *self.physical_size)
 		field.draw()
-		infographic.draw()
+		interface.draw()
 		controller.draw()
 
 	def on_resize(self, event):
@@ -936,7 +1017,7 @@ class Canvas(app.Canvas):
 		self.width, self.height = self.size
 		gloo.set_viewport(0, 0, *self.physical_size)
 		vp = (0, 0, self.physical_size[0], self.physical_size[1])
-		infographic.configure(canvas=self, viewport=vp)
+		interface.configure(canvas=self, viewport=vp)
 		controller.configure(canvas=self, viewport=vp)
 		field.set_gl_needs_update()
 		
@@ -946,6 +1027,6 @@ class Canvas(app.Canvas):
 
 canvas = Canvas()
 gloo.set_state(clear_color="#2e302f", depth_test=False, blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
-infographic = Infographic()
+interface = Interface()
 field = Field()
 controller = Controller()

@@ -7,9 +7,13 @@ from model import DoubleDQN
 from gui import controller, canvas
 
 class Glue:
-	def __init__(self):
-		self.model = DoubleDQN()
-		self.exploration_rate = config.rl_initial_exploration
+	def __init__(self, model="double_dqn"):
+		available_model = ["double_dqn"]
+		if model not in available_model:
+			raise Exception()
+		if model == "double_dqn":
+			self.model = DoubleDQN()
+		self.exploration_rate = 1.0
 		self.total_steps = 0
 		self.total_time = 0
 		self.start_time = time.time()
@@ -58,6 +62,7 @@ class Glue:
 				print "populating the replay memory.", self.total_steps, "/", config.rl_replay_start_size
 			if self.total_steps > config.rl_replay_start_size:
 				self.population_phase = False
+				self.exploration_rate = self.model.exploration_rate
 			return
 
 		self.sum_reward += reward
@@ -102,4 +107,3 @@ class Glue:
 				print "training..."
 				self.exploration_rate = self.model.exploration_rate
 
-glue = Glue()
