@@ -73,3 +73,6 @@ args = parser.parse_args()
 
 config.rl_initial_exploration = args.rl_initial_exploration
 config.rl_collision_penalty = args.rl_collision_penalty
+
+print "rl_initial_exploration:", config.rl_initial_exploration
+print "rl_collision_penalty:", config.rl_collision_penalty

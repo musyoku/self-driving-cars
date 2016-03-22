@@ -38,7 +38,7 @@ class Glue:
 		return self.last_action, None, None
 
 	def agent_step(self, action, reward, new_car_state, q_max=None, q_min=None, car_index=0):
-		if car_index >= config.initial_num_car:
+		if car_index >= self.state.shape[0]:
 			return
 
 		self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
@@ -51,6 +51,7 @@ class Glue:
 		self.prev_state[car_index] = self.state[car_index]
 
 		self.total_steps += 1
+		controller.respawn_jammed_cars()
 
 		if self.population_phase:
 			if self.total_steps % 5000 == 0:
@@ -74,7 +75,6 @@ class Glue:
 			self.model.update_target()
 
 		if self.total_steps % 10000 == 0:
-			print "model has been saved."
 			self.model.save()
 
 		if self.total_steps % 2000 == 0:
@@ -83,12 +83,11 @@ class Glue:
 			total_minutes = int(self.total_time / 60)
 			print "total_steps:", self.total_steps, "eps:", "%.3f" % self.exploration_rate, "loss:", "%.6f" % average_loss, "reward:", "%.3f" % average_reward,
 			if q_max:
-				print "q_max:", q_max
-				print "q_min:", q_min
+				print "q_max:", q_max,
+				print "q_min:", q_min,
 			print "min:", total_minutes
 			self.sum_loss = 0
 			self.sum_reward = 0
-		controller.respawn_jammed_cars()
 
 	def on_key_press(self, key):
 		if key == "R":
@@ -98,16 +97,7 @@ class Glue:
 			self.evaluation_phase = not self.evaluation_phase
 			if self.evaluation_phase:
 				print "evaluating..."
-				self.exploration_rate = 0.0
-			else:
-				print "training..."
-				self.exploration_rate = self.model.exploration_rate
-		if key == "P":
-			self.evaluation_phase = False
-			self.population_phase = not self.population_phase
-			if self.population_phase:
-				print "populating the replay memory..."
-				self.exploration_rate = 1.0
+				self.exploration_rate = 0.05
 			else:
 				print "training..."
 				self.exploration_rate = self.model.exploration_rate

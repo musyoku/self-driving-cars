@@ -550,7 +550,7 @@ class Controller:
 			text.font_size = 9
 			self.textvisuals.append(text)
 
-	def respawn_jammed_cars(self, count=50):
+	def respawn_jammed_cars(self, count=500):
 		for car in self.cars:
 			if car.jammed and car.jam_count > count:
 				car.respawn()
@@ -688,12 +688,11 @@ class Car:
 		xi, yi = field.compute_array_index_from_position(self.pos[0], self.pos[1])
 		values = np.zeros((32,), dtype=np.float32)
 
-		def ditect_angle_and_distance(sx, sy, tx, ty):
+		def compute_angle_and_distance(sx, sy, tx, ty):
 			direction = tx - sx, ty - sy
 			distance = math.sqrt(direction[0] ** 2 + direction[1] ** 2)
 			theta = (math.atan2(direction[1], direction[0]) + math.pi / 2.0) % (math.pi * 2.0)
 			return theta, distance
-
 
 		grid_width, grid_height = field.comput_grid_size()
 		subdivision_width = grid_width / float(field.n_grid_w) / 4.0
@@ -704,7 +703,7 @@ class Car:
 		blocks = field.surrounding_wal_indicis(xi, yi, 10)
 		for block in blocks:
 			wall_x, wall_y = field.compute_position_from_array_index(block[1] + xi - 10, yi + block[0] - 10)
-			theta, d = ditect_angle_and_distance(self.pos[0], self.pos[1], wall_x, wall_y)
+			theta, d = compute_angle_and_distance(self.pos[0], self.pos[1], wall_x, wall_y)
 			index = int(theta / (math.pi * 2 + 1e-8) * 16) % 16
 			if d < near_radius:
 				values[index] = max(values[index], (near_radius - d) / near_radius)
@@ -720,7 +719,7 @@ class Car:
 			target_car = self.manager.get_car_at_index(car_index)
 			if target_car is None:
 				continue
-			theta, d = ditect_angle_and_distance(self.pos[0], self.pos[1], target_car.pos[0], target_car.pos[1])
+			theta, d = compute_angle_and_distance(self.pos[0], self.pos[1], target_car.pos[0], target_car.pos[1])
 			index = int(theta / (math.pi * 2 + 1e-8) * 16) % 16
 			if d < near_radius:
 				values[index] = max(values[index], (near_radius - d) / near_radius)
@@ -747,7 +746,7 @@ class Car:
 			reward = config.rl_collision_penalty
 		return self.rl_state, reward
 
-	def ditect_collision(self, x, y):
+	def detect_collision(self, x, y):
 		xi, yi = field.compute_array_index_from_position(x, y)
 		grid_width, _ = field.comput_grid_size()
 		car_radius = grid_width / float(field.n_grid_w) / 8.0
@@ -793,10 +792,10 @@ class Car:
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		d, crashed = self.ditect_collision(self.pos[0], self.pos[1])
+		d, crashed = self.detect_collision(self.pos[0], self.pos[1])
 		if crashed is True:
 			new_pos = (self.pos[0] + move_x, self.pos[1] - move_y)
-			new_d, second_offense = self.ditect_collision(new_pos[0], new_pos[1])
+			new_d, second_offense = self.detect_collision(new_pos[0], new_pos[1])
 			if second_offense is True and new_d < d:
 				self.speed = 0
 				move_x, move_y = 0, 0

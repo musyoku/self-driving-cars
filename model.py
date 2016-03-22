@@ -72,12 +72,13 @@ class DoubleDQN(Model):
 		Model.__init__(self)
 
 		self.fc = self.build_network()
-		self.load()
-		self.update_target()
 
 		self.optimizer_fc = optimizers.Adam(alpha=config.rl_learning_rate, beta1=config.rl_gradient_momentum)
 		self.optimizer_fc.setup(self.fc)
-		self.optimizer_fc.zero_grads()
+		self.optimizer_fc.add_hook(chainer.optimizer.WeightDecay(0.0001))
+
+		self.load()
+		self.update_target()
 
 	def build_network(self):
 		config.check()
@@ -211,7 +212,14 @@ class DoubleDQN(Model):
 		if os.path.isfile(filename):
 			serializers.load_hdf5(filename, self.fc)
 			print "model loaded successfully."
+		filename = "fc.optimizer"
+		if os.path.isfile(filename):
+			serializers.load_hdf5(filename, self.optimizer_fc)
+			print "optimizer loaded successfully."
 
 	def save(self):
+		print "saving the model."
 		serializers.save_hdf5("fc.model", self.fc)
+		print "saving the optimizer."
+		serializers.save_hdf5("fc.optimizer", self.optimizer_fc)
 
