@@ -754,6 +754,8 @@ class Car:
 		distance = []
 		min_distance = 1e10
 		min_inner_product = 0
+		is_wall = False
+		crashed = False
 
 		# 壁
 		blocks = field.surrounding_wal_indicis(xi, yi, 2)
@@ -762,7 +764,9 @@ class Car:
 			d = math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2)
 			if d < car_radius * 2.0 and d < min_distance:
 				min_distance = d
-				min_inner_product = (dx - x) * (wall_x - x) + (dy - y) * (wall_y - y)
+				min_inner_product = (dx * (wall_x - x) + dy * (wall_y - y)) / (math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2) * math.sqrt(dx ** 2 + dy ** 2) + 1e-6)
+				is_wall = True
+				crashed = True
 
 		# 他の車
 		near_cars = self.manager.find_near_cars(xi, yi, 2)
@@ -775,18 +779,20 @@ class Car:
 			d = math.sqrt((target_car.pos[0] - x) ** 2 + (target_car.pos[1] - y) ** 2)
 			if d < car_radius * 2.0 and d < min_distance:
 				min_distance = d
-				min_inner_product = (dx - x) * (target_car.pos[0] - x) + (dy - y) * (target_car.pos[1] - y)
+				min_inner_product = (dx * (target_car.pos[0] - x) + dy * (target_car.pos[1] - y)) / (math.sqrt((target_car.pos[0] - x) ** 2 + (target_car.pos[1] - y) ** 2) * math.sqrt(dx ** 2 + dy ** 2) + 1e-6)
+				is_wall = False
+				crashed = True
 
 		if min_distance == 1e10:
-			return -1, -1, False
+			return -1, -1, False, False
 
-		return min_distance, min_inner_product, True
+		return crashed, min_distance, min_inner_product, is_wall
 
 	def move(self):
-		cos = math.cos(-self.steering)
-		sin = math.sin(-self.steering)
-		move_x = -sin * self.speed		
-		move_y = cos * self.speed
+		cos = math.cos(self.steering)
+		sin = math.sin(self.steering)
+		move_x = sin * self.speed		
+		move_y = -cos * self.speed
 		sensors = self.get_sensor_value()
 
 		rl_state = np.empty((34,), dtype=np.float32)
@@ -796,17 +802,20 @@ class Car:
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		d, inner_product, crashed = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
+		crashed, _, inner_product, crashed_into_wall = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
 		if crashed is True:
-			new_pos = (self.pos[0] + move_x, self.pos[1] - move_y)
-			new_d, inner_product, second_offense = self.detect_collision(new_pos[0], new_pos[1], move_x, move_y)
-			if second_offense is True and new_d < d:
-				self.speed = 0
-				move_x, move_y = 0, 0
+			if crashed_into_wall:
+				if inner_product > 0:
+					self.speed = 0
+					move_x, move_y = 0, 0
+			else:
+				self.speed *= (1.0 - max(inner_product, 0.0))
+				move_x = sin * self.speed		
+				move_y = -cos * self.speed
 			self.state_code = Car.STATE_CRASHED
 		elif self.speed > 0:
 			self.state_code = Car.STATE_REWARD
-		self.pos = (self.pos[0] + move_x, self.pos[1] - move_y)
+		self.pos = (self.pos[0] + move_x, self.pos[1] + move_y)
 		if field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
 			self.respawn()
 
@@ -878,8 +887,19 @@ class Canvas(app.Canvas):
 
 	def on_mouse_move(self, event):
 		self.toggle_wall(event.pos)
+		# car = controller.get_car_at_index(0)
+		# car.speed = 1
+		# car.move()
+		# car.pos = event.pos
 
 	def on_mouse_wheel(self, event):
+		# car = controller.get_car_at_index(0)
+		# car.speed = 1
+		# if event.delta[1] == 1:
+		# 	car.action_steer_right()
+		# else:
+		# 	car.action_steer_left()
+		# car.move()
 		pass
 
 	def toggle_wall(self, pos):
