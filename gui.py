@@ -746,20 +746,23 @@ class Car:
 			reward = config.rl_collision_penalty
 		return self.rl_state, reward
 
-	def detect_collision(self, x, y):
+	def detect_collision(self, x, y, dx, dy):
 		xi, yi = field.compute_array_index_from_position(x, y)
 		grid_width, _ = field.comput_grid_size()
 		car_radius = grid_width / float(field.n_grid_w) / 8.0
 
 		distance = []
+		min_distance = 1e10
+		min_inner_product = 0
 
 		# 壁
 		blocks = field.surrounding_wal_indicis(xi, yi, 2)
 		for block in blocks:
 			wall_x, wall_y = field.compute_position_from_array_index(block[1] + xi - 2, yi + block[0] - 2)
 			d = math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2)
-			if d < car_radius * 2.0 * 1.1:
-				distance.append(d)
+			if d < car_radius * 2.0 and d < min_distance:
+				min_distance = d
+				min_inner_product = (dx - x) * (wall_x - x) + (dy - y) * (wall_y - y)
 
 		# 他の車
 		near_cars = self.manager.find_near_cars(xi, yi, 2)
@@ -770,13 +773,14 @@ class Car:
 			if target_car is None:
 				continue
 			d = math.sqrt((target_car.pos[0] - x) ** 2 + (target_car.pos[1] - y) ** 2)
-			if d < car_radius * 2.0:
-				distance.append(d)
+			if d < car_radius * 2.0 and d < min_distance:
+				min_distance = d
+				min_inner_product = (dx - x) * (target_car.pos[0] - x) + (dy - y) * (target_car.pos[1] - y)
 
-		if len(distance) == 0:
-			return -1, False
+		if min_distance == 1e10:
+			return -1, -1, False
 
-		return np.amin(np.asarray(distance)), True
+		return min_distance, min_inner_product, True
 
 	def move(self):
 		cos = math.cos(-self.steering)
@@ -792,10 +796,10 @@ class Car:
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
-		d, crashed = self.detect_collision(self.pos[0], self.pos[1])
+		d, inner_product, crashed = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
 		if crashed is True:
 			new_pos = (self.pos[0] + move_x, self.pos[1] - move_y)
-			new_d, second_offense = self.detect_collision(new_pos[0], new_pos[1])
+			new_d, inner_product, second_offense = self.detect_collision(new_pos[0], new_pos[1], move_x, move_y)
 			if second_offense is True and new_d < d:
 				self.speed = 0
 				move_x, move_y = 0, 0
