@@ -71,13 +71,13 @@ void main() {
 class Field:
 	def __init__(self):
 		self.enable_grid = True
-		self.n_grid_h = 6
-		self.n_grid_w = 8
-		self.px = 80
-		self.py = 80
+		self.n_grid_h = 6	# number
+		self.n_grid_w = 8	# number
+		self.px = 80	# padding (pixel)
+		self.py = 80	# padding (pixel)
 
-		self.gl_needs_update = True
-		self.grid_subdiv_bg, self.grid_subdiv_wall = self.load()
+		self.gl_needs_update = True	# no need to update the background graphic every time 
+		self.grid_subdiv_bg, self.grid_subdiv_wall = self.load()	# load field data
 
 		self.gl_program_grid_point = gloo.Program(field_point_vertex, field_point_fragment)
 		self.gl_program_grid_point["u_color"] = color_field_point
@@ -86,7 +86,7 @@ class Field:
 		self.gl_program_bg["u_bg_color"] = color_gray
 		self.gl_program_bg["u_wall_color"] = color_green
 
-	def surrounding_wal_indicis(self, array_x, array_y, radius=1):
+	def surrounding_wall_indicis(self, array_x, array_y, radius=1):
 		start_xi = 0 if array_x - radius < 0 else array_x - radius
 		start_yi = 0 if array_y - radius < 0 else array_y - radius
 		end_xi = self.grid_subdiv_wall.shape[1] if array_x + radius + 1 > self.grid_subdiv_wall.shape[1] else array_x + radius + 1
@@ -102,10 +102,8 @@ class Field:
 		self.gl_needs_update = True
 
 	def load(self):
-		# 背景
 		bg = np.ones((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
 
-		# 壁
 		wall = np.zeros((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
 		wall[0,:] = 1
 		wall[-1,:] = 1
@@ -169,7 +167,6 @@ class Field:
 			return False
 		return True if self.grid_subdiv_wall[array_y, array_x] == 1 else False
 
-
 	def subdivision_exists(self, array_x, array_y):
 		if array_x < 0:
 			return False
@@ -182,7 +179,7 @@ class Field:
 		return True if self.grid_subdiv_bg[array_y, array_x] == 1 else False
 
 	def comput_grid_size(self):
-		sw, sh = canvas.size
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
 		ratio = self.n_grid_h / float(self.n_grid_w)
 		if sw >= sh:
 			lh = sh - self.py * 2
@@ -225,29 +222,28 @@ class Field:
 
 	def set_gl_attributes(self):
 		np.random.seed(0)
-		sw, sh = float(canvas.size[0]), float(canvas.size[1])
-		lw ,lh = self.comput_grid_size()
-		sgw = lw / float(self.n_grid_w) / 4.0 / sw * 2.0
-		sgh = lh / float(self.n_grid_h) / 4.0 / sh * 2.0
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+		lw ,lh = self.comput_grid_size()	# pixel
+		sgw = lw / float(self.n_grid_w) / 4.0 / sw * 2.0	# gl space
+		sgh = lh / float(self.n_grid_h) / 4.0 / sh * 2.0	# gl space
 
 		a_position = []
 		a_point_size = []
 		for nw in xrange(self.n_grid_w):
-			x = lw / float(self.n_grid_w) * nw + self.px
-			x = 2.0 * x / float(sw) - 1.0
+			x = lw / float(self.n_grid_w) * nw + self.pixel_x	# pixel
+			x = 2.0 * x / float(sw) - 1.0	# gl coord
 			for nh in xrange(self.n_grid_h):
-				y = lh / float(self.n_grid_h) * nh + self.py
-				y = 2.0 * y / float(sh) - 1.0
+				y = lh / float(self.n_grid_h) * nh + self.py	# pixel
+				y = 2.0 * y / float(sh) - 1.0	# gl coord
 
 				# 小さいグリッド
 				for sub_y in xrange(5):
-					_y = y + sgh * sub_y
+					_y = y + sgh * sub_y	# gl coord
 					for sub_x in xrange(5):
-						xi = nw * 4 + sub_x
-						yi = nh * 4 + sub_y
+						xi = nw * 4 + sub_x	# index
+						yi = nh * 4 + sub_y	# index
 						if self.subdivision_exists(xi, yi) or self.subdivision_exists(xi - 1, yi) or self.subdivision_exists(xi, yi - 1) or self.subdivision_exists(xi - 1, yi - 1):
-							_x = x + sgw * sub_x
-							# x, yそれぞれ2マス分ずらす
+							_x = x + sgw * sub_x	# gl coord
 							a_position.append((_x, _y))
 							if sub_x % 4 == 0 and sub_y % 4 == 0:
 								a_point_size.append([3])
@@ -259,8 +255,8 @@ class Field:
 
 		a_position = []
 		a_is_wall = []
-		x_start = 2.0 * self.px / float(sw) - 1.0 - sgw * 2.0
-		y_start = 2.0 * self.py / float(sh) - 1.0 - sgh * 2.0
+		x_start = 2.0 * self.px / float(sw) - 1.0 - sgw * 2.0	# gl coord
+		y_start = 2.0 * self.py / float(sh) - 1.0 - sgh * 2.0	# gl coord
 		for h in xrange(self.grid_subdiv_bg.shape[0]):
 			for w in xrange(self.grid_subdiv_bg.shape[1]):
 				if self.grid_subdiv_bg[h, w] == 1:
@@ -420,14 +416,14 @@ class Infographic():
 		self.text_title_sensor.font_size = 16
 
 	def set_text_positions(self):
-		sw, sh = float(canvas.size[0]), float(canvas.size[1])
-		lw ,lh = field.comput_grid_size()
-		sgw = lw / float(field.n_grid_w) / 4.0
-		sgh = lh / float(field.n_grid_h) / 4.0
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+		lw ,lh = field.comput_grid_size()	# pixel
+		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
+		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
 
-		self.text_title_field.pos = field.px - sgw * 1.5, sh - lh - field.py - sgh * 3.5
-		self.text_title_data.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 3.5
-		self.text_title_sensor.pos = field.px + lw + sgw * 3.5, sh - field.py - sgh * 8.5
+		self.text_title_field.pos = field.px - sgw * 1.5, sh - lh - field.py - sgh * 3.5	# pixel
+		self.text_title_data.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 3.5	# pixel
+		self.text_title_sensor.pos = field.px + lw + sgw * 3.5, sh - field.py - sgh * 8.5	# pixel
 
 	def configure(self, canvas, viewport):
 		self.text_title_field.transforms.configure(canvas=canvas, viewport=viewport)
@@ -444,8 +440,7 @@ class Infographic():
 	def draw_sensor(self):
 		car = controller.get_car_at_index(0)
 		sensor_value = car.get_sensor_value()
-		# HACK
-		near =  np.roll(sensor_value[0:16], 1)
+		near =  np.roll(sensor_value[0:16], 1)	# adjust the angle
 		for i in xrange(8):
 			self.gl_program_sensor["u_near[%d]" % i] = max(near[i * 2], near[i * 2 + 1])
 		for i in xrange(16):
@@ -453,17 +448,17 @@ class Infographic():
 		for i in xrange(16):
 			self.gl_program_sensor["u_far[%d]" % i] = sensor_value[i + 16] if sensor_value[i + 16] < 0.5 else 0.0
 
-		sw, sh = float(canvas.size[0]), float(canvas.size[1])
-		lw ,lh = field.comput_grid_size()
-		sgw = lw / float(field.n_grid_w) / 4.0
-		sgh = lh / float(field.n_grid_h) / 4.0
-		base_x = 2.0 * (field.px + lw + sgw * 3.0) / sw - 1
-		base_y = 2.0 * (field.py - sgh * 2.0) / sh - 1
-		width = sgw * 10 / sw * 2.0
-		height = sgh * 10 / sh * 2.0
-		center = (field.px + lw + sgw * 8.0, field.py + sgh * 3.0)
-		self.gl_program_sensor["u_center"] = center
-		self.gl_program_sensor["u_size"] = sgw * 10, sgh * 10
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+		lw ,lh = field.comput_grid_size()		# pixel
+		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
+		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
+		base_x = 2.0 * (field.px + lw + sgw * 3.0) / sw - 1	# gl coord
+		base_y = 2.0 * (field.py - sgh * 2.0) / sh - 1		# gl coord
+		width = sgw * 10 / sw * 2.0		# gl space
+		height = sgh * 10 / sh * 2.0	# gl space
+		center = (field.px + lw + sgw * 8.0, field.py + sgh * 3.0)	# pixel
+		self.gl_program_sensor["u_center"] = center					# pixel
+		self.gl_program_sensor["u_size"] = sgw * 10, sgh * 10		# pixel
 		a_position = []
 		a_position.append((base_x, base_y))
 		a_position.append((base_x + width, base_y))
@@ -472,7 +467,7 @@ class Infographic():
 		a_position.append(a_position[1])
 		a_position.append(a_position[2])
 		a_position.append(a_position[3])
-		self.gl_program_sensor["a_position"] = a_position
+		self.gl_program_sensor["a_position"] = a_position			# gl coord
 
 		self.gl_program_sensor.draw("triangles")
 
@@ -591,19 +586,19 @@ class Controller:
 			text.draw()
 
 		# Circle around car_0
-		sw, sh = float(canvas.size[0]), float(canvas.size[1])
-		length = canvas.size[0] / 10.0
-		location_width = length / sw * 2.0
-		location_height = length / sh * 2.0
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+		length = canvas.size[0] / 10.0	# pixel
+		location_width = length / sw * 2.0	# gl space
+		location_height = length / sh * 2.0	# gl space
 		car = self.get_car_at_index(0)
-		location_center = 2.0 * (car.pos[0] / sw) - 1, 2.0 - 2.0 * (car.pos[1] / sh)  - 1
+		location_center = 2.0 * (car.pos[0] / sw) - 1, 2.0 - 2.0 * (car.pos[1] / sh)  - 1	# gl coord
 		a_position = [(location_center[0] - location_width / 2.0, location_center[1] - location_height / 2.0),
 								(location_center[0] + location_width / 2.0, location_center[1] - location_height / 2.0),
 								(location_center[0] - location_width / 2.0, location_center[1] + location_height / 2.0),
 								(location_center[0] + location_width / 2.0, location_center[1] + location_height / 2.0)]
-		self.gl_program_location["u_center"] = car.pos[0], sh - car.pos[1]
-		self.gl_program_location["u_size"] = length, length
-		self.gl_program_location["a_position"] = a_position
+		self.gl_program_location["u_center"] = car.pos[0], sh - car.pos[1]	# pixel
+		self.gl_program_location["u_size"] = length, length					# pixel
+		self.gl_program_location["a_position"] = a_position					# gl coord
 		self.gl_program_location.draw("triangle_strip")
 
 	def step(self):
@@ -647,10 +642,10 @@ class Controller:
 		return None
 
 class Car:
-	car_width = 12.0
-	car_height = 20.0
+	car_width = 12.0	# pixel
+	car_height = 20.0	# pixel
 	shape = [(-car_width/2.0, car_height/2.0), (car_width/2.0, car_height/2.0),(car_width/2.0, car_height/2.0), (car_width/2.0, -car_height/2.0),(car_width/2.0, -car_height/2.0), (-car_width/2.0, -car_height/2.0),(-car_width/2.0, -car_height/2.0), (-car_width/2.0, car_height/2.0),(0.0, car_height/2.0+1.0), (0.0, 1.0)]
-	max_speed = 10.0
+	max_speed = 10.0	# pixel / time_step
 	STATE_NORMAL = 0
 	STATE_REWARD = 1
 	STATE_CRASHED = 2
@@ -659,7 +654,7 @@ class Car:
 		self.manager = manager
 		self.speed = 0
 		self.steering = 0
-		self.steering_unit = math.pi / 15.0
+		self.steering_unit = math.pi / 15.0	# radian
 		self.state_code = Car.STATE_NORMAL
 		self.jammed = False
 		self.jam_count = 0
@@ -668,15 +663,15 @@ class Car:
 		self.prev_lookup_yi = None
 
 	def compute_gl_attributes(self):
-		xi, yi = field.compute_subdivision_array_index_from_screen_position(self.pos[0], self.pos[1])
-		sw, sh = canvas.size
+		xi, yi = field.compute_subdivision_array_index_from_screen_position(self.pos[0], self.pos[1])	# index
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
 		cos = math.cos(-self.steering)
 		sin = math.sin(-self.steering)
 		positions = []
 		colors = []
 		for x, y in Car.shape:
-			_x = 2.0 * (x * cos - y * sin + self.pos[0]) / sw - 1
-			_y = 2.0 * (x * sin + y * cos + (sh - self.pos[1])) / sh - 1
+			_x = 2.0 * (x * cos - y * sin + self.pos[0]) / sw - 1			# gl coord
+			_y = 2.0 * (x * sin + y * cos + (sh - self.pos[1])) / sh - 1	# gl coord
 			positions.append((_x, _y))
 			if self.state_code == Car.STATE_CRASHED:
 				colors.append(color_car_crashed)
@@ -700,7 +695,6 @@ class Car:
 			print "something went wrong with car location lookup table."
 
 	def get_sensor_value(self):
-		sw, sh = canvas.size
 		xi, yi = field.compute_subdivision_array_index_from_screen_position(self.pos[0], self.pos[1])
 		values = np.zeros((32,), dtype=np.float32)
 
@@ -716,9 +710,11 @@ class Car:
 		far_radius = 10.0 * subdivision_width
 
 		# 壁
-		blocks = field.surrounding_wal_indicis(xi, yi, 10)
-		for block in blocks:
-			wall_x, wall_y = field.compute_screen_position_from_array_index(block[1] + xi - 10, yi + block[0] - 10)
+		blocks = field.surrounding_wall_indicis(xi, yi, 10)
+		for local_block in blocks:
+			global_xi = local_block[1] + xi - 10
+			global_yi = yi + local_block[0] - 10
+			wall_x, wall_y = field.compute_screen_position_from_array_index(global_xi, global_yi)
 			theta, d = compute_angle_and_distance(self.pos[0], self.pos[1], wall_x, wall_y)
 			index = int(theta / (math.pi * 2 + 1e-8) * 16) % 16
 			if d < near_radius:
@@ -736,7 +732,7 @@ class Car:
 			if target_car is None:
 				continue
 			theta, d = compute_angle_and_distance(self.pos[0], self.pos[1], target_car.pos[0], target_car.pos[1])
-			index = int(theta / (math.pi * 2 + 1e-8) * 16) % 16
+			index = int(theta / (math.pi * 2 + 1e-6) * 16) % 16
 			if d < near_radius:
 				values[index] = max(values[index], (near_radius - d) / near_radius)
 			else:
@@ -744,7 +740,7 @@ class Car:
 				values[index] = max(values[index], (far_radius - d) / (far_radius - near_radius))
 
 		# 車体の向きに合わせる
-		area = int(self.steering / (math.pi + 1e-8) * 8.0)
+		area = int(self.steering / (math.pi + 1e-6) * 8.0)
 		ratio = self.steering % (math.pi / 8.0)
 		mix = np.roll(values[0:16], -(area + 1)) * ratio + np.roll(values[0:16], -area) * (1.0 - ratio)
 		values[0:16] = mix
@@ -767,14 +763,13 @@ class Car:
 		grid_width, _ = field.comput_grid_size()
 		car_radius = grid_width / float(field.n_grid_w) / 8.0
 
-		distance = []
 		min_distance = 1e10
 		min_inner_product = 0
 		is_wall = False
 		crashed = False
 
 		# 壁
-		blocks = field.surrounding_wal_indicis(xi, yi, 2)
+		blocks = field.surrounding_wall_indicis(xi, yi, 2)
 		for block in blocks:
 			wall_x, wall_y = field.compute_screen_position_from_array_index(block[1] + xi - 2, yi + block[0] - 2)
 			d = math.sqrt((wall_x - x) ** 2 + (wall_y - y) ** 2)
@@ -807,8 +802,8 @@ class Car:
 	def move(self):
 		cos = math.cos(self.steering)
 		sin = math.sin(self.steering)
-		move_x = sin * self.speed		
-		move_y = -cos * self.speed
+		move_x = sin * self.speed	# pixel
+		move_y = -cos * self.speed	# pixel
 		sensors = self.get_sensor_value()
 
 		rl_state = np.empty((34,), dtype=np.float32)
