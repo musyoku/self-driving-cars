@@ -8,8 +8,8 @@ from gui import controller, canvas
 
 class Glue:
 	def __init__(self, model="double_dqn"):
-		available_model = ["double_dqn"]
-		if model not in available_model:
+		available_models = ["double_dqn"]
+		if model not in available_models:
 			raise Exception()
 		if model == "double_dqn":
 			self.model = DoubleDQN()
@@ -96,7 +96,7 @@ class Glue:
 
 	def on_key_press(self, key):
 		if key == "R":
-			controller.respawn_jammed_cars()
+			controller.respawn_jammed_cars(count=0)
 		if key == "E":
 			self.population_phase = False
 			self.evaluation_phase = not self.evaluation_phase

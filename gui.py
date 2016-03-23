@@ -285,7 +285,7 @@ class Field:
 			self.gl_program_grid_point.draw("points")
 
 
-infographic_sensor_vertex = """
+interface_sensor_vertex = """
 attribute vec2 a_position;
 
 void main() {
@@ -293,7 +293,7 @@ void main() {
 }
 """
 
-infographic_sensor_fragment = """
+interface_sensor_fragment = """
 uniform vec2 u_center;
 uniform vec2 u_size;
 uniform float u_near[8];
@@ -396,7 +396,7 @@ void main() {
 
 class Interface():
 	def __init__(self):
-		self.gl_program_sensor = gloo.Program(infographic_sensor_vertex, infographic_sensor_fragment)
+		self.gl_program_sensor = gloo.Program(interface_sensor_vertex, interface_sensor_fragment)
 		self.gl_program_sensor["u_near_color"] = color_infographic_sensor_near
 		self.gl_program_sensor["u_mid_color"] = color_infographic_sensor_mid
 		self.gl_program_sensor["u_far_color"] = color_infographic_sensor_far
@@ -426,7 +426,7 @@ class Interface():
 		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
 
 		self.text_title_field.pos = field.px - sgw * 1.5, sh - lh - field.py - sgh * 3.5	# pixel
-		self.text_title_status.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 3.5	# pixel
+		self.text_title_status.pos = field.px + lw + sgw * 3.5, sh - lh - field.py - sgh * 1.5	# pixel
 		self.text_title_q.pos = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 4.5	# pixel
 		self.text_title_sensor.pos = field.px + lw + sgw * 3.5, sh - field.py - sgh * 8.5	# pixel
 
@@ -532,10 +532,35 @@ void main() {
 controller_q_fragment = """
 uniform vec4 u_bg_color;
 uniform vec4 u_bar_color;
-uniform float u_limit;
+uniform float u_limit_x;
 
 void main() {
-	gl_FragColor = mix(u_bg_color, u_bar_color, float(gl_FragCoord.x < u_limit));
+	gl_FragColor = mix(u_bg_color, u_bar_color, float(gl_FragCoord.x < u_limit_x));
+}
+"""
+
+controller_speed_vertex = """
+attribute vec2 a_position;
+
+void main() {
+	gl_Position = vec4(a_position, 0.0, 1.0);
+}
+"""
+
+controller_speed_fragment = """
+uniform vec4 u_bg_color;
+uniform vec4 u_bar_forward_color;
+uniform vec4 u_bar_backward_color;
+uniform float u_limit_x;
+uniform float u_center_x;
+uniform float u_speed;
+
+void main() {
+	if(u_speed > 0){
+		gl_FragColor = mix(mix(u_bar_forward_color, u_bg_color, float(gl_FragCoord.x < u_center_x)), u_bg_color, float(gl_FragCoord.x > u_limit_x));
+	}else{
+		gl_FragColor = mix(mix(u_bar_backward_color, u_bg_color, float(gl_FragCoord.x > u_center_x)), u_bg_color, float(gl_FragCoord.x < u_limit_x));
+	}
 }
 """
 
@@ -570,6 +595,46 @@ class Controller:
 		self.text_q_backward.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_q_right.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_q_left.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_status_speed.transforms.configure(canvas=canvas, viewport=viewport)
+
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+		lw ,lh = field.comput_grid_size()		# pixel
+		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
+		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
+		gl_base_x = 2.0 * (field.px + lw + sgw * 8.0) / sw - 1		# gl coord
+		gl_base_y = 2.0 * (lh + field.py - sgh * 7.75) / sh - 1		# gl coord
+		gl_width = sgw * 5 / sw * 2.0				# gl space
+		gl_height = sgh / sh * 2.0					# gl space
+
+		def register(x, y):
+			a_position = []
+			a_position.append((x, y))
+			a_position.append((x + gl_width, y))
+			a_position.append((x, y + gl_height))
+			a_position.append((x + gl_width, y + gl_height))
+			return a_position
+			
+		self.gl_program_q_forward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_backward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_right["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_left["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+
+		gl_base_y = 2.0 * (lh + field.py - sgh * 1.75) / sh - 1		# gl coord
+		self.gl_program_status_speed["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		
+		base_x, base_y = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 7.0	# pixel
+		self.text_q_forward.pos = base_x, base_y
+		base_y += sgh * 1.5
+		self.text_q_backward.pos = base_x, base_y
+		base_y += sgh * 1.5
+		self.text_q_right.pos = base_x, base_y
+		base_y += sgh * 1.5
+		self.text_q_left.pos = base_x, base_y
+
+		self.text_status_speed.pos = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 1.0
 
 	def remove_from_location_lookup(self, array_x, array_y, car_index):
 		if array_x is None or array_y is None:
@@ -605,6 +670,9 @@ class Controller:
 		self.text_q_left = visuals.TextVisual("left", color="white", anchor_x="left", anchor_y="top")
 		self.text_q_left.font_size = 10
 
+		self.text_status_speed = visuals.TextVisual("speed", color="white", anchor_x="left", anchor_y="top")
+		self.text_status_speed.font_size = 10
+
 		self.gl_program_cars = gloo.Program(controller_cars_vertex, controller_cars_fragment)
 		self.gl_program_location = gloo.Program(controller_location_vertex, controller_location_fragment)
 		self.gl_program_location["u_line_color"] = color_yellow
@@ -617,39 +685,11 @@ class Controller:
 		self.gl_program_q_left = gloo.Program(controller_q_vertex, controller_q_fragment)
 		self.gl_program_q_left["u_bg_color"] = color_black
 
-		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		lw ,lh = field.comput_grid_size()		# pixel
-		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
-		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
-		gl_base_x = 2.0 * (field.px + lw + sgw * 8.0) / sw - 1		# gl coord
-		gl_base_y = 2.0 * (lh + field.py - sgh * 7.75) / sh - 1		# gl coord
-		gl_width = sgw * 5 / sw * 2.0				# gl space
-		gl_height = sgh / sh * 2.0					# gl space
+		self.gl_program_status_speed = gloo.Program(controller_speed_vertex, controller_speed_fragment)
+		self.gl_program_status_speed["u_bg_color"] = color_black
+		self.gl_program_status_speed["u_bar_forward_color"] = color_blue
+		self.gl_program_status_speed["u_bar_backward_color"] = color_whitesmoke
 
-		def register(x, y):
-			a_position = []
-			a_position.append((x, y))
-			a_position.append((x + gl_width, y))
-			a_position.append((x, y + gl_height))
-			a_position.append((x + gl_width, y + gl_height))
-			return a_position
-			
-		self.gl_program_q_forward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		gl_base_y -= sgh * 1.5 / sh * 2.0
-		self.gl_program_q_backward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		gl_base_y -= sgh * 1.5 / sh * 2.0
-		self.gl_program_q_right["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		gl_base_y -= sgh * 1.5 / sh * 2.0
-		self.gl_program_q_left["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		
-		base_x, base_y = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 7.0	# pixel
-		self.text_q_forward.pos = base_x, base_y
-		base_y += sgh * 1.5
-		self.text_q_backward.pos = base_x, base_y
-		base_y += sgh * 1.5
-		self.text_q_right.pos = base_x, base_y
-		base_y += sgh * 1.5
-		self.text_q_left.pos = base_x, base_y
 
 	def draw(self):
 		a_position = []
@@ -686,13 +726,21 @@ class Controller:
 		self.text_q_right.draw()
 		self.text_q_left.draw()
 
+		self.text_status_speed.draw()
+
 		self.gl_program_q_forward.draw("triangle_strip")
 		self.gl_program_q_backward.draw("triangle_strip")
 		self.gl_program_q_right.draw("triangle_strip")
 		self.gl_program_q_left.draw("triangle_strip")
 
+		self.gl_program_status_speed.draw("triangle_strip")
+
 	def set_q_visual(self, q=None):
 		if q is None:
+			self.gl_program_q_forward["u_limit_x"] = 0
+			self.gl_program_q_backward["u_limit_x"] = 0
+			self.gl_program_q_right["u_limit_x"] = 0
+			self.gl_program_q_left["u_limit_x"] = 0
 			return
 		q_max = np.amax(q)
 		q_min = np.amin(q)
@@ -705,14 +753,29 @@ class Controller:
 		base_x = field.px + lw + sgw * 8.0		# pixel
 		width = sgw * 5							# pixel
 
-		self.gl_program_q_forward["u_limit"] = base_x + width * q[1]
-		self.gl_program_q_forward["u_bar_color"] = color_blue if q_max == q[1] else color_whitesmoke
-		self.gl_program_q_backward["u_limit"] = base_x + width * q[2]
-		self.gl_program_q_backward["u_bar_color"] = color_blue if q_max == q[2] else color_whitesmoke
-		self.gl_program_q_right["u_limit"] = base_x + width * q[3]
-		self.gl_program_q_right["u_bar_color"] = color_blue if q_max == q[3] else color_whitesmoke
-		self.gl_program_q_left["u_limit"] = base_x + width * q[4]
-		self.gl_program_q_left["u_bar_color"] = color_blue if q_max == q[4] else color_whitesmoke
+		self.gl_program_q_forward["u_limit_x"] = base_x + width * q[1]
+		self.gl_program_q_forward["u_bar_color"] = color_red if q_max == q[1] else color_whitesmoke
+		self.gl_program_q_backward["u_limit_x"] = base_x + width * q[2]
+		self.gl_program_q_backward["u_bar_color"] = color_red if q_max == q[2] else color_whitesmoke
+		self.gl_program_q_right["u_limit_x"] = base_x + width * q[3]
+		self.gl_program_q_right["u_bar_color"] = color_red if q_max == q[3] else color_whitesmoke
+		self.gl_program_q_left["u_limit_x"] = base_x + width * q[4]
+		self.gl_program_q_left["u_bar_color"] = color_red if q_max == q[4] else color_whitesmoke
+
+	def set_status_visual(self):
+		car = self.get_car_at_index(0)
+
+		lw ,_ = field.comput_grid_size()		# pixel
+		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
+		base_x = field.px + lw + sgw * 8.0		# pixel
+		width = sgw * 5							# pixel
+
+		u_center_x = base_x + width / 2.0
+		u_speed = car.speed / Car.max_speed
+
+		self.gl_program_status_speed["u_center_x"] = u_center_x
+		self.gl_program_status_speed["u_limit_x"] = u_center_x + width / 2.0 * u_speed
+		self.gl_program_status_speed["u_speed"] = u_speed
 
 	def step(self):
 		if self.glue is None:
@@ -733,8 +796,12 @@ class Controller:
 			else:
 				raise NotImplementedError()
 			car.move()
-			if i == 0 and q_batch is not None:
-				self.set_q_visual(q_batch[i])
+			if i == 0:
+				if q_batch is None:
+					self.set_q_visual(q=None)
+				else:
+					self.set_q_visual(q_batch[i])
+			self.set_status_visual()
 			new_state, reward = car.get_rl_state_and_reward()
 			if new_state is not None:
 				if q_batch is None:
