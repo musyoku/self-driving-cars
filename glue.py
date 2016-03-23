@@ -3,15 +3,15 @@ import time
 import numpy as np
 from vispy import app
 from config import config
-from model import DoubleDQN
+from model import *
 from gui import controller, canvas
 
 class Glue:
-	def __init__(self, model="double_dqn"):
+	def __init__(self):
 		available_models = ["double_dqn"]
-		if model not in available_models:
+		if config.rl_model not in available_models:
 			raise Exception()
-		if model == "double_dqn":
+		if config.rl_model == "double_dqn":
 			self.model = DoubleDQN()
 		self.exploration_rate = 1.0
 		self.total_steps = 0
@@ -76,7 +76,7 @@ class Glue:
 			self.sum_loss += loss.data
 
 		if self.total_steps % config.rl_target_network_update_frequency == 0:
-			print "target network has been updated."
+			print "target network updated."
 			self.model.update_target()
 
 		if self.total_steps % 10000 == 0:

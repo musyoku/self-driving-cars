@@ -662,33 +662,44 @@ class Controller:
 
 	def init_gl_programs(self):
 		self.text_q_forward = visuals.TextVisual("forward", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_forward.font_size = 10
+		self.text_q_forward.font_size = 12
 		self.text_q_backward = visuals.TextVisual("backward", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_backward.font_size = 10
+		self.text_q_backward.font_size = 12
 		self.text_q_right = visuals.TextVisual("right", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_right.font_size = 10
+		self.text_q_right.font_size = 12
 		self.text_q_left = visuals.TextVisual("left", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_left.font_size = 10
+		self.text_q_left.font_size = 12
 
 		self.text_status_speed = visuals.TextVisual("speed", color="white", anchor_x="left", anchor_y="top")
-		self.text_status_speed.font_size = 10
+		self.text_status_speed.font_size = 12
 
 		self.gl_program_cars = gloo.Program(controller_cars_vertex, controller_cars_fragment)
 		self.gl_program_location = gloo.Program(controller_location_vertex, controller_location_fragment)
 		self.gl_program_location["u_line_color"] = color_yellow
 		self.gl_program_q_forward = gloo.Program(controller_q_vertex, controller_q_fragment)
 		self.gl_program_q_forward["u_bg_color"] = color_black
+		self.gl_program_q_forward["u_limit_x"] = 0
+		self.gl_program_q_forward["u_bar_color"] = color_black
 		self.gl_program_q_backward = gloo.Program(controller_q_vertex, controller_q_fragment)
 		self.gl_program_q_backward["u_bg_color"] = color_black
+		self.gl_program_q_backward["u_limit_x"] = 0
+		self.gl_program_q_backward["u_bar_color"] = color_black
 		self.gl_program_q_right = gloo.Program(controller_q_vertex, controller_q_fragment)
 		self.gl_program_q_right["u_bg_color"] = color_black
+		self.gl_program_q_right["u_limit_x"] = 0
+		self.gl_program_q_right["u_bar_color"] = color_black
 		self.gl_program_q_left = gloo.Program(controller_q_vertex, controller_q_fragment)
 		self.gl_program_q_left["u_bg_color"] = color_black
+		self.gl_program_q_left["u_limit_x"] = 0
+		self.gl_program_q_left["u_bar_color"] = color_black
 
 		self.gl_program_status_speed = gloo.Program(controller_speed_vertex, controller_speed_fragment)
 		self.gl_program_status_speed["u_bg_color"] = color_black
 		self.gl_program_status_speed["u_bar_forward_color"] = color_blue
 		self.gl_program_status_speed["u_bar_backward_color"] = color_whitesmoke
+		self.gl_program_status_speed["u_center_x"] = 0
+		self.gl_program_status_speed["u_speed"] = 0
+		self.gl_program_status_speed["u_limit_x"] = 0
 
 
 	def draw(self):

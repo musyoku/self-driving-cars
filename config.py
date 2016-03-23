@@ -10,8 +10,8 @@ class Config:
 		self.apply_batchnorm = True
 
 		# 5: 何もしない
-		# 6: アクセル
-		# 7: ブレーキ
+		# 6: 前進
+		# 7: 後退
 		# 8: ハンドル右
 		# 9: ハンドル左
 		self.actions = [5, 6, 7, 8, 9]
@@ -22,8 +22,8 @@ class Config:
 		# 直近n個の状態全てで同じ行動を取る
 		self.rl_action_repeat = 1
 
-		# "dqn", "double_dqn"
-		self.rl_method = "double_dqn"
+		# "double_dqn"
+		self.rl_model = "double_dqn"
 
 		self.rl_minibatch_size = 32
 		self.rl_replay_memory_size = 10 ** 6
@@ -35,7 +35,7 @@ class Config:
 		self.rl_initial_exploration = 1.0
 		self.rl_final_exploration = 0.1
 		self.rl_final_exploration_step = 10 ** 6
-		self.rl_replay_start_size = 10 ** 1
+		self.rl_replay_start_size = 10 ** 5
 		self.rl_collision_penalty = -1.0
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
@@ -56,7 +56,7 @@ class Config:
 			raise Exception("Invalid activation function for q_fc_activation_function.")
 		if len(self.q_fc_hidden_units) == 0:
 			raise Exception("You need to add one or more hidden layers.")
-		if self.rl_method not in ["dqn", "double_dqn"]:
+		if self.rl_model not in ["dqn", "double_dqn"]:
 			raise Exception("Invalid method.")
 		if self.rl_action_repeat < 1:
 			self.rl_action_repeat = 1

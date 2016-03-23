@@ -213,8 +213,8 @@ class DoubleDQN(Model):
 			print "optimizer loaded successfully."
 
 	def save(self):
-		print "saving the model."
 		serializers.save_hdf5("fc.model", self.fc)
-		print "saving the optimizer."
+		print "model saved."
 		serializers.save_hdf5("fc.optimizer", self.optimizer_fc)
+		print "optimizer saved."
 
