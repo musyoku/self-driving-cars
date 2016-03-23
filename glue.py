@@ -36,12 +36,12 @@ class Glue:
 
 	def take_action_batch(self):
 		if self.total_steps % config.rl_action_repeat == 0:
-			action, q_max, q_min = self.model.eps_greedy(self.state, self.exploration_rate)
-			self.last_action = action
-			return action, q_max, q_min
-		return self.last_action, None, None
+			action_batch, q_batch = self.model.eps_greedy(self.state, self.exploration_rate)
+			self.last_action = action_batch
+			return action_batch, q_batch
+		return self.last_action, None
 
-	def agent_step(self, action, reward, new_car_state, q_max=None, q_min=None, car_index=0):
+	def agent_step(self, action, reward, new_car_state, q=None, car_index=0):
 		if car_index >= self.state.shape[0]:
 			return
 
@@ -87,9 +87,9 @@ class Glue:
 			average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
 			total_minutes = int(self.total_time / 60)
 			print "total_steps:", self.total_steps, "eps:", "%.3f" % self.exploration_rate, "loss:", "%.6f" % average_loss, "reward:", "%.3f" % average_reward,
-			if q_max:
-				print "q_max:", q_max,
-				print "q_min:", q_min,
+			if q:
+				print "q_max:", np.max(q),
+				print "q_min:", np.min(q),
 			print "min:", total_minutes
 			self.sum_loss = 0
 			self.sum_reward = 0

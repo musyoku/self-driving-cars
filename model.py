@@ -116,26 +116,21 @@ class DoubleDQN(Model):
 		if state_batch.ndim == 1:
 			state_batch = state_batch.reshape(1, -1)
 		prop = np.random.uniform()
-		q_max = np.zeros((state_batch.shape[0],), dtype=np.float32)
-		q_min = np.zeros((state_batch.shape[0],), dtype=np.float32)
 		if prop < exploration_rate:
 			action_batch = np.random.randint(0, len(config.actions), (state_batch.shape[0],))
+			q = None
 		else:
 			state_batch = Variable(state_batch)
 			if config.use_gpu:
 				state_batch.to_gpu()
 			q = self.compute_q_variable(state_batch, test=True)
 			if config.use_gpu:
-				action_batch = cuda.to_cpu(cuda.cupy.argmax(q.data, axis=1))
-				q_max = cuda.to_cpu(cuda.cupy.max(q.data, axis=1))
-				q_min = cuda.to_cpu(cuda.cupy.min(q.data, axis=1))
-			else:
-				action_batch = np.argmax(q.data, axis=1)
-				q_max = np.max(q.data, axis=1)
-				q_min = np.min(q.data, axis=1)
+				q.to_cpu()
+			q = q.data
+			action_batch = np.argmax(q, axis=1)
 		for i in xrange(action_batch.shape[0]):
 			action_batch[i] = self.get_action_for_index(action_batch[i])
-		return action_batch, q_max, q_min
+		return action_batch, q
 
 	def forward_one_step(self, state, action, reward, next_state, test=False):
 		xp = cuda.cupy if config.use_gpu else np

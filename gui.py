@@ -532,10 +532,10 @@ void main() {
 controller_q_fragment = """
 uniform vec4 u_bg_color;
 uniform vec4 u_bar_color;
-uniform float limit;
+uniform float u_limit;
 
 void main() {
-	gl_FragColor = u_bg_color;
+	gl_FragColor = mix(u_bg_color, u_bar_color, float(gl_FragCoord.x < u_limit));
 }
 """
 
@@ -548,25 +548,6 @@ class Controller:
 	def __init__(self):
 		self.cars = []
 		self.location_lookup = np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
-		self.gl_program_cars = gloo.Program(controller_cars_vertex, controller_cars_fragment)
-		self.gl_program_location = gloo.Program(controller_location_vertex, controller_location_fragment)
-		self.gl_program_location["u_line_color"] = color_yellow
-		self.gl_program_q_forward = gloo.Program(controller_q_vertex, controller_q_fragment)
-		self.gl_program_q_forward["u_bg_color"] = color_black
-		self.gl_program_q_backward = gloo.Program(controller_q_vertex, controller_q_fragment)
-		self.gl_program_q_backward["u_bg_color"] = color_black
-		self.gl_program_q_right = gloo.Program(controller_q_vertex, controller_q_fragment)
-		self.gl_program_q_right["u_bg_color"] = color_black
-		self.gl_program_q_left = gloo.Program(controller_q_vertex, controller_q_fragment)
-		self.gl_program_q_left["u_bg_color"] = color_black
-		self.text_q_forward = visuals.TextVisual("forward", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_forward.font_size = 10
-		self.text_q_backward = visuals.TextVisual("backward", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_backward.font_size = 10
-		self.text_q_right = visuals.TextVisual("right", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_right.font_size = 10
-		self.text_q_left = visuals.TextVisual("left", color="white", anchor_x="left", anchor_y="top")
-		self.text_q_left.font_size = 10
 		self.car_textvisuals = []
 		for i in xrange(config.initial_num_car):
 			car = Car(self, index=i)
@@ -575,6 +556,7 @@ class Controller:
 			text = visuals.TextVisual("car %d" % i, color="white", anchor_x="left", anchor_y="top")
 			text.font_size = 9
 			self.car_textvisuals.append(text)
+		self.init_gl_programs()
 
 	def respawn_jammed_cars(self, count=500):
 		for car in self.cars:
@@ -613,36 +595,29 @@ class Controller:
 			return True
 		return False
 
-	def draw(self):
-		a_position = []
-		a_color = []
-		for car in self.cars:
-			positions, colors = car.compute_gl_attributes()
-			a_position.extend(positions)
-			a_color.extend(colors)
-		self.gl_program_cars["a_position"] = a_position
-		self.gl_program_cars["a_color"] = a_color
-		self.gl_program_cars.draw("lines")
+	def init_gl_programs(self):
+		self.text_q_forward = visuals.TextVisual("forward", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_forward.font_size = 10
+		self.text_q_backward = visuals.TextVisual("backward", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_backward.font_size = 10
+		self.text_q_right = visuals.TextVisual("right", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_right.font_size = 10
+		self.text_q_left = visuals.TextVisual("left", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_left.font_size = 10
 
-		for text in self.car_textvisuals:
-			text.draw()
+		self.gl_program_cars = gloo.Program(controller_cars_vertex, controller_cars_fragment)
+		self.gl_program_location = gloo.Program(controller_location_vertex, controller_location_fragment)
+		self.gl_program_location["u_line_color"] = color_yellow
+		self.gl_program_q_forward = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_forward["u_bg_color"] = color_black
+		self.gl_program_q_backward = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_backward["u_bg_color"] = color_black
+		self.gl_program_q_right = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_right["u_bg_color"] = color_black
+		self.gl_program_q_left = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_left["u_bg_color"] = color_black
 
-		# Circle around car_0
 		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		length = canvas.size[0] / 10.0	# pixel
-		location_width = length / sw * 2.0	# gl space
-		location_height = length / sh * 2.0	# gl space
-		car = self.get_car_at_index(0)
-		location_center = 2.0 * (car.pos[0] / sw) - 1, 2.0 - 2.0 * (car.pos[1] / sh)  - 1	# gl coord
-		a_position = [(location_center[0] - location_width / 2.0, location_center[1] - location_height / 2.0),
-								(location_center[0] + location_width / 2.0, location_center[1] - location_height / 2.0),
-								(location_center[0] - location_width / 2.0, location_center[1] + location_height / 2.0),
-								(location_center[0] + location_width / 2.0, location_center[1] + location_height / 2.0)]
-		self.gl_program_location["u_center"] = car.pos[0], sh - car.pos[1]	# pixel
-		self.gl_program_location["u_size"] = length, length					# pixel
-		self.gl_program_location["a_position"] = a_position					# gl coord
-		self.gl_program_location.draw("triangle_strip")
-
 		lw ,lh = field.comput_grid_size()		# pixel
 		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
 		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
@@ -660,35 +635,89 @@ class Controller:
 			return a_position
 			
 		self.gl_program_q_forward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		self.gl_program_q_forward.draw("triangle_strip")
 		gl_base_y -= sgh * 1.5 / sh * 2.0
 		self.gl_program_q_backward["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		self.gl_program_q_backward.draw("triangle_strip")
 		gl_base_y -= sgh * 1.5 / sh * 2.0
 		self.gl_program_q_right["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		self.gl_program_q_right.draw("triangle_strip")
 		gl_base_y -= sgh * 1.5 / sh * 2.0
 		self.gl_program_q_left["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
-		self.gl_program_q_left.draw("triangle_strip")
 		
 		base_x, base_y = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 7.0	# pixel
 		self.text_q_forward.pos = base_x, base_y
-		self.text_q_forward.draw()
 		base_y += sgh * 1.5
 		self.text_q_backward.pos = base_x, base_y
-		self.text_q_backward.draw()
 		base_y += sgh * 1.5
 		self.text_q_right.pos = base_x, base_y
-		self.text_q_right.draw()
 		base_y += sgh * 1.5
 		self.text_q_left.pos = base_x, base_y
+
+	def draw(self):
+		a_position = []
+		a_color = []
+		for car in self.cars:
+			positions, colors = car.compute_gl_attributes()
+			a_position.extend(positions)
+			a_color.extend(colors)
+		self.gl_program_cars["a_position"] = a_position
+		self.gl_program_cars["a_color"] = a_color
+		self.gl_program_cars.draw("lines")
+
+		for text in self.car_textvisuals:
+			text.draw()
+
+		# Circle around car_0
+		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+		length = canvas.size[0] / 10.0	# pixel
+		gl_location_width = length / sw * 2.0	# gl space
+		gl_location_height = length / sh * 2.0	# gl space
+		car = self.get_car_at_index(0)
+		gl_location_center = 2.0 * (car.pos[0] / sw) - 1, 2.0 - 2.0 * (car.pos[1] / sh)  - 1	# gl coord
+		a_position = [(gl_location_center[0] - gl_location_width / 2.0, gl_location_center[1] - gl_location_height / 2.0),
+								(gl_location_center[0] + gl_location_width / 2.0, gl_location_center[1] - gl_location_height / 2.0),
+								(gl_location_center[0] - gl_location_width / 2.0, gl_location_center[1] + gl_location_height / 2.0),
+								(gl_location_center[0] + gl_location_width / 2.0, gl_location_center[1] + gl_location_height / 2.0)]
+		self.gl_program_location["u_center"] = car.pos[0], sh - car.pos[1]	# pixel
+		self.gl_program_location["u_size"] = length, length					# pixel
+		self.gl_program_location["a_position"] = a_position					# gl coord
+		self.gl_program_location.draw("triangle_strip")
+
+		self.text_q_forward.draw()
+		self.text_q_backward.draw()
+		self.text_q_right.draw()
 		self.text_q_left.draw()
 
+		self.gl_program_q_forward.draw("triangle_strip")
+		self.gl_program_q_backward.draw("triangle_strip")
+		self.gl_program_q_right.draw("triangle_strip")
+		self.gl_program_q_left.draw("triangle_strip")
+
+	def set_q_visual(self, q=None):
+		if q is None:
+			return
+		q_max = np.amax(q)
+		q_min = np.amin(q)
+		diff = q_max - q_min
+		q = (q - q_min) / (diff + 1e-6)
+		q_max = np.amax(q)
+
+		lw ,_ = field.comput_grid_size()		# pixel
+		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
+		base_x = field.px + lw + sgw * 8.0		# pixel
+		width = sgw * 5							# pixel
+
+		self.gl_program_q_forward["u_limit"] = base_x + width * q[1]
+		self.gl_program_q_forward["u_bar_color"] = color_blue if q_max == q[1] else color_whitesmoke
+		self.gl_program_q_backward["u_limit"] = base_x + width * q[2]
+		self.gl_program_q_backward["u_bar_color"] = color_blue if q_max == q[2] else color_whitesmoke
+		self.gl_program_q_right["u_limit"] = base_x + width * q[3]
+		self.gl_program_q_right["u_bar_color"] = color_blue if q_max == q[3] else color_whitesmoke
+		self.gl_program_q_left["u_limit"] = base_x + width * q[4]
+		self.gl_program_q_left["u_bar_color"] = color_blue if q_max == q[4] else color_whitesmoke
 
 	def step(self):
 		if self.glue is None:
 			return
-		action_batch, q_max_batch, q_min_batch = self.glue.take_action_batch()
+		action_batch, q_batch = self.glue.take_action_batch()
 		for i, car in enumerate(self.cars):
 			action = action_batch[i]
 			if action == Controller.ACTION_NO_OPS:
@@ -704,12 +733,14 @@ class Controller:
 			else:
 				raise NotImplementedError()
 			car.move()
+			if i == 0 and q_batch is not None:
+				self.set_q_visual(q_batch[i])
 			new_state, reward = car.get_rl_state_and_reward()
 			if new_state is not None:
-				if q_max_batch is None:
-					self.glue.agent_step(action, reward, new_state, None, None, car_index=car.index)
+				if q_batch is None:
+					self.glue.agent_step(action, reward, new_state, None, car_index=car.index)
 				else:
-					self.glue.agent_step(action, reward, new_state, q_max_batch[i], q_min_batch[i], car_index=car.index)
+					self.glue.agent_step(action, reward, new_state, q_batch[i], car_index=car.index)
 			text = self.car_textvisuals[car.index]
 			text.pos = car.pos[0] + 12, car.pos[1] - 10
 
@@ -953,6 +984,7 @@ class Canvas(app.Canvas):
 
 		self.is_mouse_pressed = False
 		self.is_key_shift_pressed = False
+		self.is_key_ctrl_pressed = False
 
 		self._timer = app.Timer(1.0 / 20.0, connect=self.on_timer, start=True)
 
@@ -1000,18 +1032,30 @@ class Canvas(app.Canvas):
 				x, y = field.compute_subdivision_array_index_from_screen_position(pos[0], pos[1])
 				if self.is_key_shift_pressed:
 					field.destroy_wall_on_subdivision(x, y)
+					if self.is_key_ctrl_pressed:
+						for n in xrange(3):
+							for m in xrange(3):
+								field.destroy_wall_on_subdivision(x + n - 1, y + m - 1)
 				else:
 					field.construct_wall_on_subdivision(x, y)
+					if self.is_key_ctrl_pressed:
+						for n in xrange(3):
+							for m in xrange(3):
+								field.construct_wall_on_subdivision(x + n - 1, y + m - 1)
 
 	def on_key_press(self, event):
 		if event.key == "Shift":
 			self.is_key_shift_pressed = True
+		if event.key == "Control":
+			self.is_key_ctrl_pressed = True
 		if self.glue:
 			self.glue.on_key_press(event.key)
 
 	def on_key_release(self, event):
 		if event.key == "Shift":
 			self.is_key_shift_pressed = False
+		if event.key == "Control":
+			self.is_key_ctrl_pressed = False
 
 	def activate_zoom(self):
 		self.width, self.height = self.size
