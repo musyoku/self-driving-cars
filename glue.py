@@ -87,7 +87,7 @@ class Glue:
 			average_reward = self.sum_reward / float(2000) / float(config.initial_num_car)
 			total_minutes = int(self.total_time / 60)
 			print "total_steps:", self.total_steps, "eps:", "%.3f" % self.exploration_rate, "loss:", "%.6f" % average_loss, "reward:", "%.3f" % average_reward,
-			if q:
+			if q is not None:
 				print "q_max:", np.amax(q),
 				print "q_min:", np.amin(q),
 			print "min:", total_minutes
