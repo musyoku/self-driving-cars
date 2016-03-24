@@ -37,6 +37,7 @@ class Config:
 		self.rl_final_exploration_step = 10 ** 6
 		self.rl_replay_start_size = 10 ** 5
 		self.rl_collision_penalty = -1.0
+		self.rl_positive_reward_scale = 0.05
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
 		self.q_fc_hidden_units = [600, 400, 200, 100, 50]
@@ -69,10 +70,13 @@ config = Config()
 parser = argparse.ArgumentParser()
 parser.add_argument("--rl_initial_exploration", type=float, default=config.rl_initial_exploration)
 parser.add_argument("--rl_collision_penalty", type=float, default=config.rl_collision_penalty)
+parser.add_argument("--rl_positive_reward_scale", type=float, default=config.rl_positive_reward_scale)
 args = parser.parse_args()
 
 config.rl_initial_exploration = args.rl_initial_exploration
 config.rl_collision_penalty = args.rl_collision_penalty
+config.rl_positive_reward_scale = args.rl_positive_reward_scale
 
 print "rl_initial_exploration:", config.rl_initial_exploration
 print "rl_collision_penalty:", config.rl_collision_penalty
+print "rl_positive_reward_scale:", config.rl_positive_reward_scale

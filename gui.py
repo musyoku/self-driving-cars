@@ -946,7 +946,7 @@ class Car:
 		return values
 
 	def get_rl_state_and_reward(self):
-		reward = max(self.speed / float(self.max_speed), 0.0)
+		reward = max(self.speed / float(self.max_speed), 0.0) * config.rl_positive_reward_scale
 		if self.state_code == Car.STATE_CRASHED:
 			reward = config.rl_collision_penalty
 		return self.rl_state, reward

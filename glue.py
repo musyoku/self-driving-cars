@@ -88,8 +88,8 @@ class Glue:
 			total_minutes = int(self.total_time / 60)
 			print "total_steps:", self.total_steps, "eps:", "%.3f" % self.exploration_rate, "loss:", "%.6f" % average_loss, "reward:", "%.3f" % average_reward,
 			if q:
-				print "q_max:", np.max(q),
-				print "q_min:", np.min(q),
+				print "q_max:", np.amax(q),
+				print "q_min:", np.amin(q),
 			print "min:", total_minutes
 			self.sum_loss = 0
 			self.sum_reward = 0
