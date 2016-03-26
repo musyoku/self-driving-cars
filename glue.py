@@ -45,7 +45,7 @@ class Glue:
 			return
 
 		self.state[car_index] = np.roll(self.state[car_index], 1, axis=0)
-		self.state[car_index, -1] = new_car_state
+		self.state[car_index, 0] = new_car_state
 
 		if self.evaluation_phase:
 			return

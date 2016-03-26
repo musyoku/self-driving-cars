@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import chainer, math, copy, os
-from chainer import cuda, Variable, optimizers, serializers
+from chainer import cuda, Variable, optimizers, serializers, optimizer
 from chainer import functions as F
 from chainer import links as L
 from activations import activations
@@ -83,7 +83,8 @@ class DoubleDQN(Model):
 
 		self.optimizer_fc = optimizers.Adam(alpha=config.rl_learning_rate, beta1=config.rl_gradient_momentum)
 		self.optimizer_fc.setup(self.fc)
-		self.optimizer_fc.add_hook(chainer.optimizer.WeightDecay(0.0001))
+		self.optimizer_fc.add_hook(optimizer.WeightDecay(0.0001))
+		self.optimizer_fc.add_hook(optimizer.GradientClipping(10.0))
 
 		self.load()
 		self.update_target()

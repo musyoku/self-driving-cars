@@ -25,7 +25,7 @@ class Config:
 		# "double_dqn"
 		self.rl_model = "double_dqn"
 
-		self.rl_minibatch_size = 32
+		self.rl_minibatch_size = 128
 		self.rl_replay_memory_size = 10 ** 6
 		self.rl_target_network_update_frequency = 10 ** 4
 		self.rl_discount_factor = 0.99
@@ -39,11 +39,14 @@ class Config:
 		self.rl_collision_penalty = -1.0
 		self.rl_positive_reward_scale = 1.0
 
+		# final_reward = 0.0 if reward < rl_positive_reward_cutoff else reward
+		self.rl_positive_reward_cutoff = 0.5
+
 		# Options:
 		## "max_speed"
 		## "proportional_to_speed"
 		## "proportional_to_squared_speed"
-		self.rl_reward_type = "proportional_to_squared_speed"
+		self.rl_reward_type = "proportional_to_speed"
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
 		self.q_fc_hidden_units = [600, 400, 200, 100, 50]
@@ -51,7 +54,7 @@ class Config:
 		## See activations.py
 		self.q_fc_activation_function = "elu"
 
-		self.q_fc_apply_dropout = False
+		self.q_fc_apply_dropout = True
 
 		self.q_fc_apply_batchnorm_to_input = False
 
@@ -80,16 +83,19 @@ parser.add_argument("--rl_initial_exploration", type=float, default=config.rl_in
 parser.add_argument("--rl_collision_penalty", type=float, default=config.rl_collision_penalty)
 parser.add_argument("--rl_positive_reward_scale", type=float, default=config.rl_positive_reward_scale)
 parser.add_argument("--rl_reward_type", type=str, default=config.rl_reward_type)
+parser.add_argument("--rl_positive_reward_cutoff", type=float, default=config.rl_positive_reward_cutoff)
 args = parser.parse_args()
 
 config.rl_initial_exploration = args.rl_initial_exploration
 config.rl_collision_penalty = args.rl_collision_penalty
 config.rl_positive_reward_scale = args.rl_positive_reward_scale
 config.rl_reward_type = args.rl_reward_type
+config.rl_positive_reward_cutoff = args.rl_positive_reward_cutoff
 
 print "rl_initial_exploration:", config.rl_initial_exploration
 print "rl_collision_penalty:", config.rl_collision_penalty
 print "rl_positive_reward_scale:", config.rl_positive_reward_scale
 print "rl_reward_type:", config.rl_reward_type
+print "rl_positive_reward_cutoff:", config.rl_positive_reward_cutoff
 
 config.check()

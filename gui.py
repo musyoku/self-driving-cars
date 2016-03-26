@@ -809,11 +809,14 @@ class Controller:
 			car.move()
 			if i == 0:
 				if q_batch is None:
-					self.set_q_visual(q=None)
+					q = np.zeros((len(config.actions,)), dtype=np.float32)
+					q[config.actions.index(action)] = 1.0
+					self.set_q_visual(q=q)
 				else:
 					self.set_q_visual(q_batch[i])
 			self.set_status_visual()
-			new_state, reward = car.get_rl_state_and_reward()
+			reward = car.get_reward()
+			new_state = car.rl_state
 			if new_state is not None:
 				if q_batch is None:
 					self.glue.agent_step(action, reward, new_state, None, car_index=car.index)
@@ -945,16 +948,19 @@ class Car:
 
 		return values
 
-	def get_rl_state_and_reward(self):
+	def get_reward(self):
+		reward = 0.0
 		if config.rl_reward_type == "max_speed":
 			reward = 0.0 if self.speed < self.max_speed else config.rl_positive_reward_scale
 		elif config.rl_reward_type == "proportional_to_speed":
 			reward = max(self.speed / float(self.max_speed), 0.0) * config.rl_positive_reward_scale
 		elif config.rl_reward_type == "proportional_to_squared_speed":
 			reward = max(self.speed / float(self.max_speed), 0.0) ** 2 * config.rl_positive_reward_scale
+		if reward < config.rl_positive_reward_cutoff:
+			reward = 0
 		if self.state_code == Car.STATE_CRASHED:
 			reward = config.rl_collision_penalty
-		return self.rl_state, reward
+		return reward
 
 	def detect_collision(self, x, y, dx, dy):
 		xi, yi = field.compute_subdivision_array_index_from_screen_position(x, y)
@@ -997,6 +1003,12 @@ class Car:
 
 		return crashed, min_distance, min_inner_product, is_wall
 
+	def gets_reward(self):
+		reward = self.get_reward()
+		if reward > 0:
+			return True
+		return False
+
 	def move(self):
 		cos = math.cos(self.steering)
 		sin = math.sin(self.steering)
@@ -1010,14 +1022,7 @@ class Car:
 		rl_state[33] = self.steering / math.pi / 2.0
 		self.rl_state = rl_state
 
-		self.state_code = Car.STATE_NORMAL
-
-		if config.rl_reward_type == "max_speed" and self.speed >= self.max_speed:
-			self.state_code = Car.STATE_REWARD
-		elif config.rl_reward_type == "proportional_to_speed" and self.speed > 0:
-			self.state_code = Car.STATE_REWARD
-		elif config.rl_reward_type == "proportional_to_squared_speed" and self.speed > 0:
-			self.state_code = Car.STATE_REWARD
+		self.state_code = Car.STATE_REWARD if self.gets_reward() else Car.STATE_NORMAL
 
 		crashed, _, inner_product, crashed_into_wall = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
 		if crashed is True:
