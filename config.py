@@ -37,7 +37,13 @@ class Config:
 		self.rl_final_exploration_step = 10 ** 6
 		self.rl_replay_start_size = 10 ** 5
 		self.rl_collision_penalty = -1.0
-		self.rl_positive_reward_scale = 0.05
+		self.rl_positive_reward_scale = 1.0
+
+		# Options:
+		## "max_speed"
+		## "proportional_to_speed"
+		## "proportional_to_squared_speed"
+		self.rl_reward_type = "proportional_to_squared_speed"
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
 		self.q_fc_hidden_units = [600, 400, 200, 100, 50]
@@ -58,7 +64,9 @@ class Config:
 		if len(self.q_fc_hidden_units) == 0:
 			raise Exception("You need to add one or more hidden layers.")
 		if self.rl_model not in ["dqn", "double_dqn"]:
-			raise Exception("Invalid method.")
+			raise Exception("Invalid model.")
+		if self.rl_reward_type not in ["max_speed", "proportional_to_speed", "proportional_to_squared_speed"]:
+			raise Exception("Invalid rl_reward_type.")
 		if self.rl_action_repeat < 1:
 			self.rl_action_repeat = 1
 		if self.rl_replay_start_size > self.rl_replay_memory_size:
@@ -71,12 +79,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--rl_initial_exploration", type=float, default=config.rl_initial_exploration)
 parser.add_argument("--rl_collision_penalty", type=float, default=config.rl_collision_penalty)
 parser.add_argument("--rl_positive_reward_scale", type=float, default=config.rl_positive_reward_scale)
+parser.add_argument("--rl_reward_type", type=str, default=config.rl_reward_type)
 args = parser.parse_args()
 
 config.rl_initial_exploration = args.rl_initial_exploration
 config.rl_collision_penalty = args.rl_collision_penalty
 config.rl_positive_reward_scale = args.rl_positive_reward_scale
+config.rl_reward_type = args.rl_reward_type
 
 print "rl_initial_exploration:", config.rl_initial_exploration
 print "rl_collision_penalty:", config.rl_collision_penalty
 print "rl_positive_reward_scale:", config.rl_positive_reward_scale
+print "rl_reward_type:", config.rl_reward_type
+
+config.check()

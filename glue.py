@@ -3,8 +3,7 @@ import time
 import numpy as np
 from vispy import app
 from config import config
-from model import *
-from gui import controller, canvas
+import model, gui
 
 class Glue:
 	def __init__(self):
@@ -12,13 +11,13 @@ class Glue:
 		if config.rl_model not in available_models:
 			raise Exception()
 		if config.rl_model == "double_dqn":
-			self.model = DoubleDQN()
+			self.model = model.DoubleDQN()
 		self.exploration_rate = 1.0
 		self.total_steps = 0
 		self.total_time = 0
 		self.start_time = time.time()
-		controller.glue = self
-		canvas.glue = self
+		gui.controller.glue = self
+		gui.canvas.glue = self
 
 		self.state = np.zeros((config.initial_num_car, config.rl_history_length, 34), dtype=np.float32)
 		self.prev_state = self.state.copy()
@@ -30,8 +29,8 @@ class Glue:
 		self.population_phase = True
 
 	def start(self):
-		canvas.activate_zoom()
-		canvas.show()
+		gui.canvas.activate_zoom()
+		gui.canvas.show()
 		app.run()
 
 	def take_action_batch(self):
@@ -55,7 +54,7 @@ class Glue:
 		self.prev_state[car_index] = self.state[car_index]
 
 		self.total_steps += 1
-		controller.respawn_jammed_cars()
+		gui.controller.respawn_jammed_cars()
 
 		if self.population_phase:
 			if self.total_steps % 5000 == 0:
@@ -96,7 +95,7 @@ class Glue:
 
 	def on_key_press(self, key):
 		if key == "R":
-			controller.respawn_jammed_cars(count=0)
+			gui.controller.respawn_jammed_cars(count=0)
 		if key == "E":
 			self.population_phase = False
 			self.evaluation_phase = not self.evaluation_phase

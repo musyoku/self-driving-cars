@@ -946,7 +946,12 @@ class Car:
 		return values
 
 	def get_rl_state_and_reward(self):
-		reward = max(self.speed / float(self.max_speed), 0.0) * config.rl_positive_reward_scale
+		if config.rl_reward_type == "max_speed":
+			reward = 0.0 if self.speed < self.max_speed else config.rl_positive_reward_scale
+		elif config.rl_reward_type == "proportional_to_speed":
+			reward = max(self.speed / float(self.max_speed), 0.0) * config.rl_positive_reward_scale
+		elif config.rl_reward_type == "proportional_to_squared_speed":
+			reward = max(self.speed / float(self.max_speed), 0.0) ** 2 * config.rl_positive_reward_scale
 		if self.state_code == Car.STATE_CRASHED:
 			reward = config.rl_collision_penalty
 		return self.rl_state, reward
@@ -1006,6 +1011,14 @@ class Car:
 		self.rl_state = rl_state
 
 		self.state_code = Car.STATE_NORMAL
+
+		if config.rl_reward_type == "max_speed" and self.speed >= self.max_speed:
+			self.state_code = Car.STATE_REWARD
+		elif config.rl_reward_type == "proportional_to_speed" and self.speed > 0:
+			self.state_code = Car.STATE_REWARD
+		elif config.rl_reward_type == "proportional_to_squared_speed" and self.speed > 0:
+			self.state_code = Car.STATE_REWARD
+
 		crashed, _, inner_product, crashed_into_wall = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
 		if crashed is True:
 			if crashed_into_wall:
@@ -1017,9 +1030,9 @@ class Car:
 				move_x = sin * self.speed		
 				move_y = -cos * self.speed
 			self.state_code = Car.STATE_CRASHED
-		elif self.speed > 0:
-			self.state_code = Car.STATE_REWARD
+
 		self.pos = (self.pos[0] + move_x, self.pos[1] + move_y)
+		
 		if field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
 			self.respawn()
 
