@@ -7,11 +7,15 @@ import model, gui
 
 class Glue:
 	def __init__(self):
-		available_models = ["double_dqn"]
+		available_models = ["dqn", "double_dqn", "dueling_double_dqn"]
 		if config.rl_model not in available_models:
-			raise Exception()
-		if config.rl_model == "double_dqn":
+			raise Exception("specified model is not available.")
+		if config.rl_model == "dqn":
+			self.model = model.DQN()
+		elif config.rl_model == "double_dqn":
 			self.model = model.DoubleDQN()
+		elif config.rl_model == "dueling_double_dqn":
+			self.model = model.DuelingDoubleDQN()
 		self.exploration_rate = 1.0
 		self.total_steps = 0
 		self.total_time = 0
@@ -93,9 +97,19 @@ class Glue:
 			self.sum_loss = 0
 			self.sum_reward = 0
 
+	def append_new_car(self, new_car_index=0):
+		if new_car_index < len(self.state):
+			return
+		for n in xrange(new_car_index - len(self.state) + 1):
+			self.state = np.append(self.state, np.zeros((1, config.rl_history_length, 34), dtype=np.float32), axis=0)
+		self.prev_state = self.state.copy()
+
 	def on_key_press(self, key):
 		if key == "R":
 			gui.controller.respawn_jammed_cars(count=0)
+		if key == "A":
+			new_car_index = gui.add_car()
+			self.append_new_car(new_car_index)
 		if key == "E":
 			self.population_phase = False
 			self.evaluation_phase = not self.evaluation_phase

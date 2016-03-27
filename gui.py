@@ -86,6 +86,9 @@ class Field:
 		self.gl_program_bg["u_bg_color"] = color_gray
 		self.gl_program_bg["u_wall_color"] = color_green
 
+		self._lw = None
+		self._lh = None
+
 	def surrounding_wall_indicis(self, array_x, array_y, radius=1):
 		start_xi = 0 if array_x - radius < 0 else array_x - radius
 		start_yi = 0 if array_y - radius < 0 else array_y - radius
@@ -100,6 +103,8 @@ class Field:
 
 	def set_gl_needs_update(self):
 		self.gl_needs_update = True
+		self._lw = None
+		self._lh = None
 
 	def load(self):
 		bg = np.ones((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
@@ -115,9 +120,8 @@ class Field:
 		wall[:,-2] = 1
 		return bg, wall
 
-	def is_screen_position_inside_field(self, pixel_x, pixel_y, grid_width=None, grid_height=None):
-		if grid_width is None or grid_height is None:
-			grid_width, grid_height = self.comput_grid_size()
+	def is_screen_position_inside_field(self, pixel_x, pixel_y):
+		grid_width, grid_height = self.compute_grid_size()
 		_, screen_height = canvas.size
 		subdivision_width = grid_width / float(self.n_grid_w) / 4.0
 		subdivision_height = grid_height / float(self.n_grid_h) / 4.0
@@ -131,9 +135,9 @@ class Field:
 			return False
 		return True
 
-	def compute_subdivision_array_index_from_screen_position(self, pixel_x, pixel_y, grid_width=None, grid_height=None):
-		grid_width, grid_height = self.comput_grid_size()
-		if self.is_screen_position_inside_field(pixel_x, pixel_y, grid_width=grid_width, grid_height=grid_height) is False:
+	def compute_subdivision_array_index_from_screen_position(self, pixel_x, pixel_y):
+		grid_width, grid_height = self.compute_grid_size()
+		if self.is_screen_position_inside_field(pixel_x, pixel_y) is False:
 			return -1, -1
 		_, screen_height = canvas.size
 		subdivision_width = grid_width / float(self.n_grid_w) / 4.0
@@ -142,8 +146,8 @@ class Field:
 		y = pixel_y - (screen_height - self.py - grid_height - subdivision_height * 2)
 		return int(x / subdivision_width), self.grid_subdiv_wall.shape[0] - int(y / subdivision_height) - 1
 
-	def compute_screen_position_from_array_index(self, array_x, array_y, grid_width=None, grid_height=None):
-		grid_width, grid_height = self.comput_grid_size()
+	def compute_screen_position_from_array_index(self, array_x, array_y):
+		grid_width, grid_height = self.compute_grid_size()
 		_, screen_height = canvas.size
 		subdivision_width = grid_width / float(self.n_grid_w) / 4.0
 		subdivision_height = grid_height / float(self.n_grid_h) / 4.0
@@ -178,23 +182,30 @@ class Field:
 			return False
 		return True if self.grid_subdiv_bg[array_y, array_x] == 1 else False
 
-	def comput_grid_size(self):
-		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		ratio = self.n_grid_h / float(self.n_grid_w)
-		if sw >= sh:
-			lh = sh - self.py * 2
-			lw = lh / ratio
-			# フィールドは画面の左半分
-			if lw > sw / 1.3 - self.px * 2:
-				lw = sw / 1.3 - self.px * 2
-				lh = lw * ratio
-			if lh > sh - self.py * 2:
+	def compute_grid_size(self):
+		if self._lw is None:
+			sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
+			ratio = self.n_grid_h / float(self.n_grid_w)
+			if sw >= sh:
 				lh = sh - self.py * 2
 				lw = lh / ratio
-		else:
-			lw = sw / 1.3 - self.px * 2
-			lh = lw * ratio
-		return lw, lh
+				# フィールドは画面の左半分
+				if lw > sw / 1.3 - self.px * 2:
+					lw = sw / 1.3 - self.px * 2
+					lh = lw * ratio
+				if lh > sh - self.py * 2:
+					lh = sh - self.py * 2
+					lw = lh / ratio
+			else:
+				lw = sw / 1.3 - self.px * 2
+				lh = lw * ratio
+			self._lw = lw
+			self._lh = lh
+		return self._lw, self._lh
+
+	def compute_subdivision_size(self):
+		lw, lh = self.compute_grid_size()
+		return lw / float(self.n_grid_w) / 4.0, lh / float(self.n_grid_h) / 4.0
 
 	def construct_wall_on_subdivision(self, array_x, array_y):
 		if array_x < 0:
@@ -223,9 +234,10 @@ class Field:
 	def set_gl_attributes(self):
 		np.random.seed(0)
 		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		lw ,lh = self.comput_grid_size()	# pixel
-		sgw = lw / float(self.n_grid_w) / 4.0 / sw * 2.0	# gl space
-		sgh = lh / float(self.n_grid_h) / 4.0 / sh * 2.0	# gl space
+		lw ,lh = self.compute_grid_size()						# pixel
+		sgw, sgh = self.compute_subdivision_size()				# pixel
+		gl_sgw = sgw / sw * 2.0	# gl space
+		gl_sgh = sgh / sh * 2.0	# gl space
 
 		a_position = []
 		a_point_size = []
@@ -238,12 +250,12 @@ class Field:
 
 				# 小さいグリッド
 				for sub_y in xrange(5):
-					_y = y + sgh * sub_y	# gl coord
+					_y = y + gl_sgh * sub_y	# gl coord
 					for sub_x in xrange(5):
 						xi = nw * 4 + sub_x	# index
 						yi = nh * 4 + sub_y	# index
 						if self.subdivision_exists(xi, yi) or self.subdivision_exists(xi - 1, yi) or self.subdivision_exists(xi, yi - 1) or self.subdivision_exists(xi - 1, yi - 1):
-							_x = x + sgw * sub_x	# gl coord
+							_x = x + gl_sgw * sub_x	# gl coord
 							a_position.append((_x, _y))
 							if sub_x % 4 == 0 and sub_y % 4 == 0:
 								a_point_size.append([3])
@@ -255,18 +267,18 @@ class Field:
 
 		a_position = []
 		a_is_wall = []
-		x_start = 2.0 * self.px / float(sw) - 1.0 - sgw * 2.0	# gl coord
-		y_start = 2.0 * self.py / float(sh) - 1.0 - sgh * 2.0	# gl coord
+		x_start = 2.0 * self.px / float(sw) - 1.0 - gl_sgw * 2.0	# gl coord
+		y_start = 2.0 * self.py / float(sh) - 1.0 - gl_sgh * 2.0	# gl coord
 		for h in xrange(self.grid_subdiv_bg.shape[0]):
 			for w in xrange(self.grid_subdiv_bg.shape[1]):
 				if self.grid_subdiv_bg[h, w] == 1:
-					a_position.append((x_start + sgw * w, y_start + sgh * h))
-					a_position.append((x_start + sgw * (w + 1), y_start + sgh * h))
-					a_position.append((x_start + sgw * w, y_start + sgh * (h + 1)))
+					a_position.append((x_start + gl_sgw * w, y_start + gl_sgh * h))
+					a_position.append((x_start + gl_sgw * (w + 1), y_start + gl_sgh * h))
+					a_position.append((x_start + gl_sgw * w, y_start + gl_sgh * (h + 1)))
 
-					a_position.append((x_start + sgw * (w + 1), y_start + sgh * h))
-					a_position.append((x_start + sgw * w, y_start + sgh * (h + 1)))
-					a_position.append((x_start + sgw * (w + 1), y_start + sgh * (h + 1)))
+					a_position.append((x_start + gl_sgw * (w + 1), y_start + gl_sgh * h))
+					a_position.append((x_start + gl_sgw * w, y_start + gl_sgh * (h + 1)))
+					a_position.append((x_start + gl_sgw * (w + 1), y_start + gl_sgh * (h + 1)))
 
 					for i in xrange(6):
 						iw = 1.0 if self.grid_subdiv_wall[h, w] == 1 else 0.0
@@ -421,7 +433,7 @@ class Interface():
 
 	def set_text_positions(self):
 		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		lw ,lh = field.comput_grid_size()	# pixel
+		lw ,lh = field.compute_grid_size()	# pixel
 		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
 		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
 
@@ -456,7 +468,7 @@ class Interface():
 			self.gl_program_sensor["u_far[%d]" % i] = sensor_value[i + 16] if sensor_value[i + 16] < 0.5 else 0.0
 
 		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		lw ,lh = field.comput_grid_size()		# pixel
+		lw ,lh = field.compute_grid_size()		# pixel
 		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
 		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
 		base_x = 2.0 * (field.px + lw + sgw * 3.0) / sw - 1	# gl coord
@@ -588,17 +600,38 @@ class Controller:
 			if car.jammed and car.jam_count > count:
 				car.respawn()
 
+	def add_car(self):
+		index = len(self.cars)
+		car = Car(self, index=index)
+		self.cars.append(car)
+		print self.location_lookup.shape
+		self.location_lookup = np.append(self.location_lookup, np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, 1), dtype=np.uint8), axis=2)
+		print self.location_lookup.shape
+
+		car.respawn()
+
+		text = visuals.TextVisual("car %d" % index, color="white", anchor_x="left", anchor_y="top")
+		text.font_size = 9
+		self.car_textvisuals.append(text)
+		if self._canvas is None or self._viewport is None:
+			return index
+		text.transforms.configure(canvas=self._canvas, viewport=self._viewport)
+		return index
+
 	def configure(self, canvas, viewport):
+		self._canvas = canvas
+		self._viewport = viewport
 		for text in self.car_textvisuals:
 			text.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_q_forward.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_q_backward.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_q_right.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_q_left.transforms.configure(canvas=canvas, viewport=viewport)
+		self.text_q_no_op.transforms.configure(canvas=canvas, viewport=viewport)
 		self.text_status_speed.transforms.configure(canvas=canvas, viewport=viewport)
 
 		sw, sh = float(canvas.size[0]), float(canvas.size[1])	# pixel
-		lw ,lh = field.comput_grid_size()		# pixel
+		lw ,lh = field.compute_grid_size()		# pixel
 		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
 		sgh = lh / float(field.n_grid_h) / 4.0	# pixel
 		gl_base_x = 2.0 * (field.px + lw + sgw * 8.0) / sw - 1		# gl coord
@@ -621,6 +654,9 @@ class Controller:
 		self.gl_program_q_right["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
 		gl_base_y -= sgh * 1.5 / sh * 2.0
 		self.gl_program_q_left["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		gl_base_y -= sgh * 1.5 / sh * 2.0
+		self.gl_program_q_no_op["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
+		gl_base_y -= sgh * 1.5 / sh * 2.0
 
 		gl_base_y = 2.0 * (lh + field.py - sgh * 1.75) / sh - 1		# gl coord
 		self.gl_program_status_speed["a_position"] = register(gl_base_x, gl_base_y) 	# gl coord
@@ -633,6 +669,8 @@ class Controller:
 		self.text_q_right.pos = base_x, base_y
 		base_y += sgh * 1.5
 		self.text_q_left.pos = base_x, base_y
+		base_y += sgh * 1.5
+		self.text_q_no_op.pos = base_x, base_y
 
 		self.text_status_speed.pos = field.px + lw + sgw * 3.5, sh - lh - field.py + sgh * 1.0
 
@@ -669,6 +707,8 @@ class Controller:
 		self.text_q_right.font_size = 12
 		self.text_q_left = visuals.TextVisual("left", color="white", anchor_x="left", anchor_y="top")
 		self.text_q_left.font_size = 12
+		self.text_q_no_op = visuals.TextVisual("no-op", color="white", anchor_x="left", anchor_y="top")
+		self.text_q_no_op.font_size = 12
 
 		self.text_status_speed = visuals.TextVisual("speed", color="white", anchor_x="left", anchor_y="top")
 		self.text_status_speed.font_size = 12
@@ -692,6 +732,10 @@ class Controller:
 		self.gl_program_q_left["u_bg_color"] = color_black
 		self.gl_program_q_left["u_limit_x"] = 0
 		self.gl_program_q_left["u_bar_color"] = color_black
+		self.gl_program_q_no_op = gloo.Program(controller_q_vertex, controller_q_fragment)
+		self.gl_program_q_no_op["u_bg_color"] = color_black
+		self.gl_program_q_no_op["u_limit_x"] = 0
+		self.gl_program_q_no_op["u_bar_color"] = color_black
 
 		self.gl_program_status_speed = gloo.Program(controller_speed_vertex, controller_speed_fragment)
 		self.gl_program_status_speed["u_bg_color"] = color_black
@@ -736,6 +780,7 @@ class Controller:
 		self.text_q_backward.draw()
 		self.text_q_right.draw()
 		self.text_q_left.draw()
+		self.text_q_no_op.draw()
 
 		self.text_status_speed.draw()
 
@@ -743,6 +788,7 @@ class Controller:
 		self.gl_program_q_backward.draw("triangle_strip")
 		self.gl_program_q_right.draw("triangle_strip")
 		self.gl_program_q_left.draw("triangle_strip")
+		self.gl_program_q_no_op.draw("triangle_strip")
 
 		self.gl_program_status_speed.draw("triangle_strip")
 
@@ -752,18 +798,24 @@ class Controller:
 			self.gl_program_q_backward["u_limit_x"] = 0
 			self.gl_program_q_right["u_limit_x"] = 0
 			self.gl_program_q_left["u_limit_x"] = 0
+			self.gl_program_q_no_op["u_limit_x"] = 0
 			return
 		q_max = np.amax(q)
 		q_min = np.amin(q)
-		diff = q_max - q_min
-		q = (q - q_min) / (diff + 1e-6)
-		q_max = np.amax(q)
+		if q_max == q_min:
+			pass
+		else:
+			diff = q_max - q_min
+			q = (q - q_min) / diff
+			q_max = np.amax(q)
 
-		lw ,_ = field.comput_grid_size()		# pixel
+		lw ,_ = field.compute_grid_size()		# pixel
 		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
 		base_x = field.px + lw + sgw * 8.0		# pixel
 		width = sgw * 5							# pixel
 
+		self.gl_program_q_no_op["u_limit_x"] = base_x + width * q[0]
+		self.gl_program_q_no_op["u_bar_color"] = color_red if q_max == q[0] else color_whitesmoke
 		self.gl_program_q_forward["u_limit_x"] = base_x + width * q[1]
 		self.gl_program_q_forward["u_bar_color"] = color_red if q_max == q[1] else color_whitesmoke
 		self.gl_program_q_backward["u_limit_x"] = base_x + width * q[2]
@@ -776,7 +828,7 @@ class Controller:
 	def set_status_visual(self):
 		car = self.get_car_at_index(0)
 
-		lw ,_ = field.comput_grid_size()		# pixel
+		lw ,_ = field.compute_grid_size()		# pixel
 		sgw = lw / float(field.n_grid_w) / 4.0	# pixel
 		base_x = field.px + lw + sgw * 8.0		# pixel
 		width = sgw * 5							# pixel
@@ -793,6 +845,8 @@ class Controller:
 			return
 		action_batch, q_batch = self.glue.take_action_batch()
 		for i, car in enumerate(self.cars):
+			if i >= action_batch.shape[0]:
+				continue
 			action = action_batch[i]
 			if action == Controller.ACTION_NO_OPS:
 				pass
@@ -900,7 +954,7 @@ class Car:
 			theta = (math.atan2(direction[1], direction[0]) + math.pi / 2.0) % (math.pi * 2.0)
 			return theta, distance
 
-		grid_width, grid_height = field.comput_grid_size()
+		grid_width, grid_height = field.compute_grid_size()
 		subdivision_width = grid_width / float(field.n_grid_w) / 4.0
 		near_radius = 3.0 * subdivision_width
 		far_radius = 10.0 * subdivision_width
@@ -964,7 +1018,7 @@ class Car:
 
 	def detect_collision(self, x, y, dx, dy):
 		xi, yi = field.compute_subdivision_array_index_from_screen_position(x, y)
-		grid_width, _ = field.comput_grid_size()
+		grid_width, _ = field.compute_grid_size()
 		car_radius = grid_width / float(field.n_grid_w) / 8.0
 
 		min_distance = 1e10
@@ -999,7 +1053,7 @@ class Car:
 				crashed = True
 
 		if min_distance == 1e10:
-			return -1, -1, False, False
+			return False, 0, 0, False
 
 		return crashed, min_distance, min_inner_product, is_wall
 
@@ -1008,6 +1062,21 @@ class Car:
 		if reward > 0:
 			return True
 		return False
+
+	def next_location_is_wall(self, dx, dy):
+		grid_width, grid_height = field.compute_grid_size()
+		_, screen_height = canvas.size
+		subdivision_width, subdivision_height = field.compute_subdivision_size()
+		dx *= subdivision_width + 1e-2
+		dy *= subdivision_height + 1e-2
+		pixel_x = self.pos[0] + dx
+		pixel_y = self.pos[1] + dy
+		if field.is_screen_position_inside_field(pixel_x, pixel_y) is False:
+			return -1, -1
+		x = pixel_x - field.px + subdivision_width * 2
+		y = pixel_y - (screen_height - field.py - grid_height - subdivision_height * 2)
+		array_x, array_y = int(x / subdivision_width), field.grid_subdiv_wall.shape[0] - int(y / subdivision_height) - 1
+		return field.is_subdivision_wall(array_x, array_y)
 
 	def move(self):
 		cos = math.cos(self.steering)
@@ -1024,10 +1093,10 @@ class Car:
 
 		self.state_code = Car.STATE_REWARD if self.gets_reward() else Car.STATE_NORMAL
 
-		crashed, _, inner_product, crashed_into_wall = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
+		crashed, d, inner_product, crashed_into_wall = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
 		if crashed is True:
 			if crashed_into_wall:
-				if inner_product > 0:
+				if self.next_location_is_wall(move_x, move_y) or inner_product > 0.5:
 					self.speed = 0
 					move_x, move_y = 0, 0
 			else:
@@ -1165,8 +1234,13 @@ class Canvas(app.Canvas):
 		controller.step()
 		self.update()
 
+def add_car():
+	car_index = controller.add_car()
+	return car_index
+
 canvas = Canvas()
-gloo.set_state(clear_color="#2e302f", depth_test=False, blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
+# gloo.set_state(clear_color="#2e302f", depth_test=False, blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
+# canvas.measure_fps()
 interface = Interface()
 field = Field()
 controller = Controller()
