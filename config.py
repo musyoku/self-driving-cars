@@ -5,7 +5,7 @@ from activations import activations
 class Config:
 	def __init__(self):
 		self.screen_size = (1180, 750)
-		self.initial_num_car = 20
+		self.initial_num_cars = 20
 		self.use_gpu = True
 		self.apply_batchnorm = True
 
@@ -20,12 +20,12 @@ class Config:
 		self.rl_history_length = 3
 
 		# 直近n個の状態全てで同じ行動を取る
-		self.rl_action_repeat = 1
+		self.rl_action_repeat = 2
 
 		# "dqn"
 		# "double_dqn"
 		# "dueling_double_dqn"
-		self.rl_model = "double_dqn"
+		self.rl_model = "dueling_double_dqn"
 
 		self.rl_minibatch_size = 128
 		self.rl_replay_memory_size = 10 ** 6
@@ -37,22 +37,23 @@ class Config:
 		self.rl_gradient_momentum = 0.95
 		self.rl_initial_exploration = 1.0
 		self.rl_final_exploration = 0.1
-		self.rl_final_exploration_step = 10 ** 6
+		self.rl_final_exploration_step = 10 ** 6 * 2
 		self.rl_collision_penalty = -1.0
-		self.rl_positive_reward_scale = 1.0
+		self.rl_positive_reward_scale = 0.25
 
 		# final_reward = 0.0 if reward < rl_positive_reward_cutoff else reward
+		# Default: 0.0
 		self.rl_positive_reward_cutoff = 0.0
 
 		# Options:
 		## "max_speed"
 		## "proportional_to_speed"
 		## "proportional_to_squared_speed"
-		self.rl_reward_type = "proportional_to_speed"
+		self.rl_reward_type = "proportional_to_squared_speed"
 
 		##全結合層の各レイヤのユニット数を入力側から出力側に向かって並べる
-		self.q_fc_hidden_units = [600, 400, 200, 100]
-		# self.q_fc_hidden_units = [300, 200, 100, 50]	# for dueling network
+		# self.q_fc_hidden_units = [600, 400, 200, 100]
+		self.q_fc_hidden_units = [300, 200, 100, 50]	# for dueling network
 
 		## See activations.py
 		self.q_fc_activation_function = "elu"
@@ -69,7 +70,7 @@ class Config:
 			raise Exception("Invalid activation function for q_fc_activation_function.")
 		if len(self.q_fc_hidden_units) == 0:
 			raise Exception("You need to add one or more hidden layers.")
-		if self.rl_model not in ["dqn", "double_dqn"]:
+		if self.rl_model not in ["dqn", "double_dqn", "dueling_double_dqn"]:
 			raise Exception("Invalid model.")
 		if self.rl_reward_type not in ["max_speed", "proportional_to_speed", "proportional_to_squared_speed"]:
 			raise Exception("Invalid rl_reward_type.")

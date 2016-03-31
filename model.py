@@ -2,10 +2,12 @@
 import numpy as np
 import chainer, math, copy, os
 from chainer import cuda, Variable, optimizers, serializers, optimizer, function
+from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
 from activations import activations
 from config import config
+
 
 class FullyConnectedNetwork(chainer.Chain):
 	def __init__(self, **layers):
@@ -66,6 +68,9 @@ class Model:
 		self.replay_memory[3][index] = next_state
 		self.total_replay_memory += 1
 
+	def get_replay_memory_size(self):
+		return min(self.total_replay_memory, config.rl_replay_memory_size)
+
 	def get_action_for_index(self, i):
 		return config.actions[i]
 
@@ -79,7 +84,7 @@ class DQN(Model):
 	def __init__(self):
 		Model.__init__(self)
 
-		self.fc = self.build_network()
+		self.fc = self.build_network(output_dim=len(config.actions))
 
 		self.optimizer_fc = optimizers.Adam(alpha=config.rl_learning_rate, beta1=config.rl_gradient_momentum)
 		self.optimizer_fc.setup(self.fc)
@@ -88,7 +93,7 @@ class DQN(Model):
 		self.load()
 		self.update_target()
 
-	def build_network(self):
+	def build_network(self, output_dim=1):
 		config.check()
 		wscale = config.q_wscale
 
@@ -96,7 +101,7 @@ class DQN(Model):
 		fc_attributes = {}
 		fc_units = [(34 * config.rl_history_length, config.q_fc_hidden_units[0])]
 		fc_units += zip(config.q_fc_hidden_units[:-1], config.q_fc_hidden_units[1:])
-		fc_units += [(config.q_fc_hidden_units[-1], len(config.actions))]
+		fc_units += [(config.q_fc_hidden_units[-1], output_dim)]
 
 		for i, (n_in, n_out) in enumerate(fc_units):
 			fc_attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=wscale)
@@ -115,6 +120,8 @@ class DQN(Model):
 	def eps_greedy(self, state_batch, exploration_rate):
 		if state_batch.ndim == 1:
 			state_batch = state_batch.reshape(1, -1)
+		elif state_batch.ndim == 3:
+			state_batch = state_batch.reshape(-1, 34 * config.rl_history_length)
 		prop = np.random.uniform()
 		if prop < exploration_rate:
 			action_batch = np.random.randint(0, len(config.actions), (state_batch.shape[0],))
@@ -187,11 +194,17 @@ class DQN(Model):
 			reward[i] = self.replay_memory[2][replay_index[i]]
 			next_state[i] = self.replay_memory[3][replay_index[i]]
 
-		self.optimizer_fc.zero_grads()
+		self.optimizer_zero_grads()
 		loss, _ = self.forward_one_step(state, action, reward, next_state, test=False)
 		loss.backward()
-		self.optimizer_fc.update()
+		self.optimizer_update()
 		return loss
+
+	def optimizer_zero_grads(self):
+		self.optimizer_fc.zero_grads()
+
+	def optimizer_update(self):
+		self.optimizer_fc.update()
 
 	def compute_q_variable(self, state, test=False):
 		return self.fc(state, test=test)
@@ -292,22 +305,30 @@ class DuelingDoubleDQN(DoubleDQN):
 	def __init__(self):
 		Model.__init__(self)
 
-		self.fc_value = self.build_network()
-		self.fc_advantage = self.build_network()
+		self.fc_value = self.build_network(output_dim=1)
+		self.fc_advantage = self.build_network(output_dim=len(config.actions))
 
 		self.optimizer_fc_value = optimizers.Adam(alpha=config.rl_learning_rate, beta1=config.rl_gradient_momentum)
 		self.optimizer_fc_value.setup(self.fc_value)
 		self.optimizer_fc_value.add_hook(optimizer.GradientClipping(10.0))
 
 		self.optimizer_fc_advantage = optimizers.Adam(alpha=config.rl_learning_rate, beta1=config.rl_gradient_momentum)
-		self.optimizer_fc_advantage.setup(self.fc_value)
+		self.optimizer_fc_advantage.setup(self.fc_advantage)
 		self.optimizer_fc_advantage.add_hook(optimizer.GradientClipping(10.0))
 
 		self.load()
 		self.update_target()
 
-	def aggregate(value, advantage, mean):
+	def aggregate(self, value, advantage, mean):
 		return DuelingAggregator()(value, advantage, mean)
+
+	def optimizer_zero_grads(self):
+		self.optimizer_fc_value.zero_grads()
+		self.optimizer_fc_advantage.zero_grads()
+
+	def optimizer_update(self):
+		self.optimizer_fc_value.update()
+		self.optimizer_fc_advantage.update()
 
 	def compute_q_variable(self, state, test=False):
 		value = self.fc_value(state, test=test)

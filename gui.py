@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import math, time
+import math, time, os
 import numpy as np
 from pprint import pprint
 from vispy import app, gloo, visuals
@@ -77,7 +77,6 @@ class Field:
 		self.py = 80	# padding (pixel)
 
 		self.gl_needs_update = True	# no need to update the background graphic every time 
-		self.grid_subdiv_bg, self.grid_subdiv_wall = self.load()	# load field data
 
 		self.gl_program_grid_point = gloo.Program(field_point_vertex, field_point_fragment)
 		self.gl_program_grid_point["u_color"] = color_field_point
@@ -106,10 +105,17 @@ class Field:
 		self._lw = None
 		self._lh = None
 
-	def load(self):
-		bg = np.ones((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
+	def load(self, wall_index=0):
+		self.grid_subdiv_bg = np.ones((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
 
-		wall = np.zeros((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
+		filename = "wall_%d.npy" % wall_index
+		if os.path.isfile(filename):
+			wall = np.load(filename)
+			if wall.shape != self.grid_subdiv_bg.shape:
+				raise Exception("wall shape mismatch.")
+			print "wall data loaded successfully."
+		else:
+			wall = np.zeros((self.n_grid_h * 4 + 4, self.n_grid_w * 4 + 4), dtype=np.uint8)
 		wall[0,:] = 1
 		wall[-1,:] = 1
 		wall[1,:] = 1
@@ -118,7 +124,12 @@ class Field:
 		wall[:,-1] = 1
 		wall[:,1] = 1
 		wall[:,-2] = 1
-		return bg, wall
+		self.grid_subdiv_wall = wall
+
+	def save(self, save_to=0):
+		filename = "wall_%d.npy" % save_to
+		np.save(filename, self.grid_subdiv_wall)
+		print "wall data saved."
 
 	def is_screen_position_inside_field(self, pixel_x, pixel_y):
 		grid_width, grid_height = self.compute_grid_size()
@@ -584,9 +595,9 @@ class Controller:
 	ACTION_STEER_LEFT = 9
 	def __init__(self):
 		self.cars = []
-		self.location_lookup = np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, config.initial_num_car), dtype=np.uint8)
+		self.location_lookup = np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, config.initial_num_cars), dtype=np.uint8)
 		self.car_textvisuals = []
-		for i in xrange(config.initial_num_car):
+		for i in xrange(config.initial_num_cars):
 			car = Car(self, index=i)
 			self.cars.append(car)
 			car.respawn()
@@ -600,13 +611,11 @@ class Controller:
 			if car.jammed and car.jam_count > count:
 				car.respawn()
 
-	def add_car(self):
+	def add_a_car(self):
 		index = len(self.cars)
 		car = Car(self, index=index)
 		self.cars.append(car)
-		print self.location_lookup.shape
 		self.location_lookup = np.append(self.location_lookup, np.zeros((field.n_grid_h * 4 + 4, field.n_grid_w * 4 + 4, 1), dtype=np.uint8), axis=2)
-		print self.location_lookup.shape
 
 		car.respawn()
 
@@ -617,6 +626,12 @@ class Controller:
 			return index
 		text.transforms.configure(canvas=self._canvas, viewport=self._viewport)
 		return index
+
+	def delete_a_car(self):
+		self.cars.pop()
+		self.car_textvisuals.pop()
+		self.location_lookup = self.location_lookup[:,:,:-1]
+
 
 	def configure(self, canvas, viewport):
 		self._canvas = canvas
@@ -803,6 +818,7 @@ class Controller:
 		q_max = np.amax(q)
 		q_min = np.amin(q)
 		if q_max == q_min:
+			q /= q_max + 1e-6
 			pass
 		else:
 			diff = q_max - q_min
@@ -1093,7 +1109,7 @@ class Car:
 
 		self.state_code = Car.STATE_REWARD if self.gets_reward() else Car.STATE_NORMAL
 
-		crashed, d, inner_product, crashed_into_wall = self.detect_collision(self.pos[0], self.pos[1], move_x, move_y)
+		crashed, d, inner_product, crashed_into_wall = self.detect_collision(self.pos[0] + move_x, self.pos[1] + move_y, move_x, move_y)
 		if crashed is True:
 			if crashed_into_wall:
 				if self.next_location_is_wall(move_x, move_y) or inner_product > 0.5:
@@ -1104,8 +1120,9 @@ class Car:
 				move_x = sin * self.speed		
 				move_y = -cos * self.speed
 			self.state_code = Car.STATE_CRASHED
-
+			
 		self.pos = (self.pos[0] + move_x, self.pos[1] + move_y)
+
 		
 		if field.is_screen_position_inside_field(self.pos[0], self.pos[1]) is False:
 			self.respawn()
@@ -1234,13 +1251,17 @@ class Canvas(app.Canvas):
 		controller.step()
 		self.update()
 
-def add_car():
-	car_index = controller.add_car()
+def add_a_car():
+	car_index = controller.add_a_car()
 	return car_index
+
+def delete_a_car():
+	controller.delete_a_car()
 
 canvas = Canvas()
 # gloo.set_state(clear_color="#2e302f", depth_test=False, blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
 # canvas.measure_fps()
 interface = Interface()
 field = Field()
+field.load(wall_index=0)
 controller = Controller()
