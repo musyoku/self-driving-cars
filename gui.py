@@ -1079,7 +1079,7 @@ class Car:
 			return True
 		return False
 
-	def next_location_is_wall(self, dx, dy):
+	def is_next_location_wall(self, dx, dy):
 		grid_width, grid_height = field.compute_grid_size()
 		_, screen_height = canvas.size
 		subdivision_width, subdivision_height = field.compute_subdivision_size()
@@ -1112,7 +1112,7 @@ class Car:
 		crashed, d, inner_product, crashed_into_wall = self.detect_collision(self.pos[0] + move_x, self.pos[1] + move_y, move_x, move_y)
 		if crashed is True:
 			if crashed_into_wall:
-				if self.next_location_is_wall(move_x, move_y) or inner_product > 0.5:
+				if self.is_next_location_wall(move_x, move_y) or inner_product > 0.5:
 					self.speed = 0
 					move_x, move_y = 0, 0
 			else:

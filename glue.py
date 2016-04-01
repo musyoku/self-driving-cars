@@ -93,7 +93,7 @@ class Glue:
 
 		if self.total_steps_overall % 2000 == 0:
 			average_loss = self.sum_loss / self.total_steps_overall * (config.rl_action_repeat * config.rl_update_frequency)
-			average_reward = self.sum_reward / 2000.0 / float(config.initial_num_cars)
+			average_reward = self.sum_reward / 2000.0
 			total_minutes = int(self.total_time / 60)
 			print "total_steps:", self.total_steps_overall, "eps:", "%.3f" % self.exploration_rate, "loss:", "%.6f" % average_loss, "reward:", "%.3f" % average_reward,
 			if q is not None:

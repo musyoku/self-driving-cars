@@ -5,7 +5,7 @@ from activations import activations
 class Config:
 	def __init__(self):
 		self.screen_size = (1180, 750)
-		self.initial_num_cars = 20
+		self.initial_num_cars = 5
 		self.use_gpu = True
 		self.apply_batchnorm = True
 
@@ -43,7 +43,7 @@ class Config:
 
 		# final_reward = 0.0 if reward < rl_positive_reward_cutoff else reward
 		# Default: 0.0
-		self.rl_positive_reward_cutoff = 0.0
+		self.rl_positive_reward_cutoff = 0.025
 
 		# Options:
 		## "max_speed"
